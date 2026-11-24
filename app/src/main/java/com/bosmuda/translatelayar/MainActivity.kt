@@ -91,10 +91,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun startFlow() {
         saveSettings()
-        if (etKey.text.toString().isBlank()) {
-            toast("Isi API key dulu")
-            return
-        }
         if (!Settings.canDrawOverlays(this)) {
             toast("Izinkan 'tampil di atas aplikasi lain' dulu")
             requestOverlayPermission()
