@@ -1,56 +1,61 @@
 package com.bosmuda.translatelayar
 
-import org.json.JSONArray
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
+import com.google.android.gms.tasks.Tasks
+import com.google.mlkit.common.model.DownloadConditions
+import com.google.mlkit.nl.languageid.LanguageIdentification
+import com.google.mlkit.nl.translate.TranslateLanguage
+import com.google.mlkit.nl.translate.Translation
+import com.google.mlkit.nl.translate.TranslatorOptions
 
 /**
- * Terjemahan lewat Google Cloud Translation API (v2).
+ * Terjemahan di HP lewat ML Kit (gratis, tanpa API key).
+ * Model bahasa diunduh sekali saat pertama dipakai, setelah itu bisa offline.
  * Harus dipanggil dari background thread, bukan main thread.
  */
 object Translator {
 
-    private const val ENDPOINT = "https://translation.googleapis.com/language/translate/v2"
+    private val cache = HashMap<String, com.google.mlkit.nl.translate.Translator>()
 
     /**
+     * @param apiKey tidak dipakai lagi, dibiarkan agar pemanggil tidak perlu diubah
      * @param source kode bahasa asal, atau null untuk deteksi otomatis
      * @param target kode bahasa tujuan
      * @return hasil terjemahan dengan urutan yang sama dengan [texts]
      */
     @Throws(Exception::class)
     fun translate(apiKey: String, texts: List<String>, source: String?, target: String): List<String> {
-        val body = JSONObject().apply {
-            put("q", JSONArray(texts))
-            put("target", target)
-            if (source != null) put("source", source)
-            put("format", "text")
+        val tgt = TranslateLanguage.fromLanguageTag(target)
+            ?: throw IllegalArgumentException("Bahasa tujuan belum didukung: $target")
+
+        val srcTag = source ?: detectLanguage(texts.joinToString(" "))
+        val src = TranslateLanguage.fromLanguageTag(srcTag)
+            ?: throw IllegalArgumentException("Bahasa asal belum didukung: $srcTag")
+
+        if (src == tgt) return texts
+
+        val translator = cache.getOrPut("$src>$tgt") {
+            Translation.getClient(
+                TranslatorOptions.Builder()
+                    .setSourceLanguage(src)
+                    .setTargetLanguage(tgt)
+                    .build()
+            )
         }
 
-        val conn = (URL(ENDPOINT).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = 8000
-            readTimeout = 8000
-            doOutput = true
-            setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            setRequestProperty("X-Goog-Api-Key", apiKey)
-        }
+        // Model bahasa diunduh sekali (perlu internet), setelah itu bisa offline
+        Tasks.await(translator.downloadModelIfNeeded(DownloadConditions.Builder().build()))
 
+        return texts.map { Tasks.await(translator.translate(it)) }
+    }
+
+    /** Menebak bahasa dari teks. Kalau tidak yakin, dianggap bahasa Inggris. */
+    private fun detectLanguage(text: String): String {
+        val identifier = LanguageIdentification.getClient()
         try {
-            conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-
-            val code = conn.responseCode
-            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
-
-            if (code !in 200..299) {
-                throw IllegalStateException("HTTP $code: ${text.take(200)}")
-            }
-
-            val arr = JSONObject(text).getJSONObject("data").getJSONArray("translations")
-            return List(arr.length()) { i -> arr.getJSONObject(i).getString("translatedText") }
+            val code = Tasks.await(identifier.identifyLanguage(text))
+            return if (code == "und") "en" else code
         } finally {
-            conn.disconnect()
+            identifier.close()
         }
     }
 }

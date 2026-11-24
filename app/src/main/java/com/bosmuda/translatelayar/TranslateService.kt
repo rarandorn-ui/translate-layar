@@ -411,11 +411,6 @@ class TranslateService : Service() {
         }
 
         val apiKey = prefs().getString("api_key", "").orEmpty()
-        if (apiKey.isBlank()) {
-            toast("API key belum diisi di aplikasi")
-            finishCycle()
-            return
-        }
 
         val (src, tgt) = currentLangs()
         val sourceParam = if (src == "auto") null else src
