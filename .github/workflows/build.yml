@@ -7,6 +7,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Ambil kode
         uses: actions/checkout@v4
@@ -30,3 +32,10 @@ jobs:
         with:
           name: translate-layar-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Buat release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Translate Layar build ${{ github.run_number }}
+          files: app/build/outputs/apk/debug/app-debug.apk
