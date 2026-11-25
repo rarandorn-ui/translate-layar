@@ -28,7 +28,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:layout_marginBottom="16dp"
-                    android:text="RTS"
+                    android:text="RTTS"
                     android:textColor="#111111"
                     android:textSize="26sp"
                     android:textStyle="bold" />
@@ -111,7 +111,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="4. Tekan lama bulatan untuk menu: terjemahan sekali, salin teks, atau baca teks."
+                            android:text="4. Tekan lama bulatan untuk menu: terjemahan sekali, salin teks, atau bacakan terjemahan."
                             android:textColor="#111111" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>

@@ -169,7 +169,7 @@ class TranslateService : Service() {
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= 26) {
-            val channel = NotificationChannel(CHANNEL_ID, "RTS", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(CHANNEL_ID, "RTTS", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
@@ -187,7 +187,7 @@ class TranslateService : Service() {
             Notification.Builder(this)
         }
         return builder
-            .setContentTitle("RTS aktif")
+            .setContentTitle("RTTS aktif")
             .setContentText("Ketuk bulatan untuk menyalakan atau mematikan terjemahan")
             .setSmallIcon(android.R.drawable.ic_menu_view)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Hentikan", stopPi)
@@ -580,18 +580,43 @@ class TranslateService : Service() {
                         copyText(result)
                         finishCycle()
                     }
-                    OneShot.SPEAK -> {
-                        speakText(result)
-                        finishCycle()
-                    }
+                    OneShot.SPEAK -> readAloud(result)
                     OneShot.TRANSLATE -> onOcrDone(result, sig)
                 }
             }
             .addOnFailureListener { finishCycle() }
     }
 
+    /** Baris teks yang terlihat di layar: tanpa bilah status dan tanpa yang tertutup bulatan. */
+    private fun visibleLines(result: Text): List<Pair<RectF, String>> {
+        val bubbleRect = bubble?.let { view ->
+            val loc = IntArray(2)
+            view.getLocationOnScreen(loc)
+            RectF(
+                loc[0].toFloat(),
+                loc[1].toFloat(),
+                (loc[0] + bubbleSizePx).toFloat(),
+                (loc[1] + bubbleSizePx).toFloat()
+            )
+        } ?: RectF()
+        val statusBar = statusBarPx()
+        val lines = ArrayList<Pair<RectF, String>>()
+        for (block in result.textBlocks) {
+            for (line in block.lines) {
+                val box = line.boundingBox ?: continue
+                if (box.bottom <= statusBar) continue
+                val rect = RectF(box)
+                if (RectF.intersects(rect, bubbleRect)) continue
+                val text = line.text.trim()
+                if (text.length < 2) continue
+                lines.add(rect to text)
+            }
+        }
+        return lines
+    }
+
     private fun copyText(result: Text) {
-        val text = result.textBlocks.joinToString("\n") { it.text }.trim()
+        val text = visibleLines(result).joinToString("\n") { it.second }.trim()
         if (text.isEmpty()) {
             toast("Tidak ada teks di layar")
             return
@@ -605,20 +630,42 @@ class TranslateService : Service() {
         )
     }
 
-    /** Baca teks yang ada di layar dengan suara (mesin suara bawaan HP). */
-    private fun speakText(result: Text) {
-        val text = result.textBlocks.joinToString("\n") { it.text }.trim()
-        if (text.isEmpty()) {
+    /** Terjemahkan teks yang terlihat di layar, lalu bacakan hasilnya dengan suara. */
+    private fun readAloud(result: Text) {
+        val lines = visibleLines(result)
+        if (lines.isEmpty()) {
             toast("Tidak ada teks di layar")
+            finishCycle()
             return
         }
+        val (src, tgt) = currentLangs()
+        val sourceParam = if (src == "auto") null else src
+        val texts = lines.map { it.second }
+        worker.execute {
+            val translated: List<String> = try {
+                Translator.translate("", texts, sourceParam, tgt)
+            } catch (e: Exception) {
+                handler.post {
+                    toast("Gagal menerjemahkan: ${e.message?.take(80)}")
+                    finishCycle()
+                }
+                return@execute
+            }
+            handler.post {
+                speakAloud(translated.joinToString("\n"), tgt)
+                finishCycle()
+            }
+        }
+    }
+
+    /** Bacakan teks dengan suara bawaan HP, memakai bahasa [code]. */
+    private fun speakAloud(text: String, code: String) {
         val engine = tts
         if (engine == null || !ttsReady) {
             toast("Mesin suara belum siap, coba lagi sebentar")
             return
         }
-        val (src, _) = currentLangs()
-        val res = engine.setLanguage(ttsLocale(src))
+        val res = engine.setLanguage(ttsLocale(code))
         if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
             toast("Suara untuk bahasa ini belum terpasang di HP")
             return
@@ -658,7 +705,7 @@ class TranslateService : Service() {
             oneShotMode = OneShot.COPY
             runOnce()
         }
-        addMenuItem(menu, "🔊  Baca teks") {
+        addMenuItem(menu, "🔊  Bacakan terjemahan") {
             closeMenu()
             oneShotMode = OneShot.SPEAK
             runOnce()

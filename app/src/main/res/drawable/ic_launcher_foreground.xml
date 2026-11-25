@@ -4,15 +4,22 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:pathData="M27,38 V70 M27,38 H36 A8,8 0 0 1 36,54 H27 M36,54 L45,70 M48,38 H64 M56,38 V70 M80,41 C79,39.2 77,38 74,38 C70,38 67,40 67,44 C67,48.5 71,49.5 74,50.5 C77.5,51.5 81,53 81,57.5 C81,62 78,70 74,70 C70.5,70 67.5,68.5 67,65"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round" />
-    <path
-        android:pathData="M34,80 H74"
-        android:strokeColor="#D32F2F"
-        android:strokeWidth="4"
-        android:strokeLineCap="round" />
+    <!-- Logo RTTS: huruf putih dan garis merah, sedikit diperkecil supaya aman di dalam bentuk ikon -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.9"
+        android:scaleY="0.9">
+        <path
+            android:pathData="M24.5,65 V33 H26 A8.5,8.5 0 0 1 26,50 H24.5 M26,50 L34.5,65 M41.5,33 H51 M46.25,33 V65 M58,33 H67.5 M62.75,33 V65 M83.5,37 C83,34.5 81.5,33 79,33 C76,33 74.5,35 74.5,37.5 C74.5,41 77,42 79,43 C81.5,44 83.5,45.5 83.5,49.5 C83.5,63 81.5,65 79,65 C77,65 74.5,64 74.5,61"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="4.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M26.5,72 H81.5"
+            android:strokeColor="#D32F2F"
+            android:strokeWidth="4"
+            android:strokeLineCap="round" />
+    </group>
 </vector>
