@@ -314,6 +314,46 @@
                     android:text="Simpan pengaturan"
                     app:backgroundTint="#D32F2F" />
 
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    app:cardBackgroundColor="#FFFFFF"
+                    app:cardCornerRadius="20dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="18dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Dukung pengembang"
+                            android:textColor="#D32F2F"
+                            android:textSize="17sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Kalau aplikasi ini membantu, kamu bisa mendukung pengembangannya lewat Saweria."
+                            android:textColor="#424242" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSupport"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:text="Dukung lewat Saweria"
+                            app:backgroundTint="#E0E0E0"
+                            android:textColor="#111111" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
             </LinearLayout>
         </ScrollView>
     </FrameLayout>

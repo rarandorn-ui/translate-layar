@@ -92,6 +92,13 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
+        findViewById<Button>(R.id.btnSupport).setOnClickListener {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://saweria.co/RizkyAhmad9")))
+            } catch (e: Exception) {
+                Toast.makeText(this, "Tidak ada browser untuk membuka link", Toast.LENGTH_SHORT).show()
+            }
+        }
         findViewById<Button>(R.id.btnSave).setOnClickListener {
             saveSettings()
             toast("Pengaturan disimpan")

@@ -2,7 +2,9 @@
 
 Real Time Translate Screen (RTTS)
 
-Aplikasi terjemahan teks di layar HP. Bulatan mengambang di pinggir layar, tap untuk menyalakan atau mematikan terjemahan. Teks di layar dikenali di HP (ML Kit), lalu diterjemahkan lewat Google Cloud Translation.
+Aplikasi terjemahan teks di layar HP. Bulatan mengambang di pinggir layar, tap untuk menyalakan atau mematikan terjemahan. Teks di layar dikenali di HP (ML Kit), lalu diterjemahkan langsung di HP lewat ML Kit. Model bahasanya diunduh sekali, setelah itu bisa dipakai tanpa internet.
+
+Dukung pengembang: https://saweria.co/RizkyAhmad9
 
 **Status:** kode ini belum pernah dikompilasi atau diuji di HP. Langkah build di bawah baru akan menunjukkan apakah ada error.
 

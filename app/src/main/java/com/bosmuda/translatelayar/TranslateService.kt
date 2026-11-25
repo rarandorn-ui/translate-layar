@@ -442,7 +442,7 @@ class TranslateService : Service() {
         rec.process(InputImage.fromBitmap(bmp, 0))
             .addOnSuccessListener { result -> onOcrDone(result, sig) }
             .addOnFailureListener {
-                shownSig = sig
+                // Jangan tandai layar ini sudah dibaca, supaya dicoba lagi di putaran berikutnya
                 finishCycle()
             }
     }
@@ -584,7 +584,10 @@ class TranslateService : Service() {
                     OneShot.TRANSLATE -> onOcrDone(result, sig)
                 }
             }
-            .addOnFailureListener { finishCycle() }
+            .addOnFailureListener {
+                toast("Teks belum terbaca, coba lagi")
+                finishCycle()
+            }
     }
 
     /** Baris teks yang terlihat di layar: tanpa bilah status dan tanpa yang tertutup bulatan. */
@@ -710,7 +713,7 @@ class TranslateService : Service() {
             oneShotMode = OneShot.SPEAK
             runOnce()
         }
-        addMenuItem(menu, "✖  Tutup") { closeMenu() }
+        addMenuItem(menu, "✖  Tutup") { toast("RTTS dihentikan"); stopEverything() }
 
         val menuLp = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
