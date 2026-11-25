@@ -17,6 +17,13 @@ class OverlayView(context: Context) : View(context) {
 
     private var items: List<Item> = emptyList()
 
+    /** Pengali ukuran tulisan (1.0 = normal). */
+    var textScale: Float = 1f
+        set(value) {
+            field = value
+            invalidate()
+        }
+
     private val bgPaint = Paint().apply {
         color = Color.argb(235, 255, 255, 255)
         style = Paint.Style.FILL
@@ -33,17 +40,19 @@ class OverlayView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        val scale = textScale.coerceAtLeast(0.3f)
         for (item in items) {
-            canvas.drawRect(item.rect, bgPaint)
-
-            val maxWidth = item.rect.width() - 4f
-            var size = item.rect.height() * 0.8f
+            // Kalau tulisan diperbesar, kotak boleh ikut melebar
+            val maxWidth = item.rect.width() * maxOf(1f, scale) - 4f
+            var size = item.rect.height() * 0.8f * scale
             textPaint.textSize = size
-            // Kecilkan teks sampai muat di lebar kotak
             while (size > 8f && textPaint.measureText(item.text) > maxWidth) {
                 size -= 1f
                 textPaint.textSize = size
             }
+            val textWidth = textPaint.measureText(item.text)
+            val right = maxOf(item.rect.right, item.rect.left + textWidth + 4f)
+            canvas.drawRect(item.rect.left, item.rect.top, right, item.rect.bottom, bgPaint)
 
             val baseline = item.rect.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
             canvas.drawText(item.text, item.rect.left + 2f, baseline, textPaint)

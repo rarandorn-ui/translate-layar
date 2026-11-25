@@ -1,4 +1,4 @@
-# Translate Layar (Android)
+# RTS (Android)
 
 Aplikasi terjemahan teks di layar HP. Bulatan mengambang di pinggir layar, tap untuk menyalakan atau mematikan terjemahan. Teks di layar dikenali di HP (ML Kit), lalu diterjemahkan lewat Google Cloud Translation.
 

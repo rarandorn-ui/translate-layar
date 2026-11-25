@@ -14,10 +14,15 @@ import com.google.mlkit.nl.translate.TranslatorOptions
  */
 object Translator {
 
-    private val cache = HashMap<String, com.google.mlkit.nl.translate.Translator>()
+    private const val MEMO_LIMIT = 2000
+
+    private val clients = HashMap<String, com.google.mlkit.nl.translate.Translator>()
+
+    // Teks yang sudah pernah diterjemahkan, supaya tidak diterjemahkan ulang
+    private val memo = HashMap<String, String>()
 
     /**
-     * @param apiKey tidak dipakai lagi, dibiarkan agar pemanggil tidak perlu diubah
+     * @param apiKey tidak dipakai lagi, hanya dibiarkan agar pemanggil tidak perlu diubah
      * @param source kode bahasa asal, atau null untuk deteksi otomatis
      * @param target kode bahasa tujuan
      * @return hasil terjemahan dengan urutan yang sama dengan [texts]
@@ -33,7 +38,20 @@ object Translator {
 
         if (src == tgt) return texts
 
-        val translator = cache.getOrPut("$src>$tgt") {
+        val pair = "$src>$tgt"
+        val result = arrayOfNulls<String>(texts.size)
+        val misses = ArrayList<Int>()
+        for (i in texts.indices) {
+            val hit = memo[pair + "\u0001" + texts[i]]
+            if (hit != null) {
+                result[i] = hit
+            } else {
+                misses.add(i)
+            }
+        }
+        if (misses.isEmpty()) return result.map { it ?: "" }
+
+        val translator = clients.getOrPut(pair) {
             Translation.getClient(
                 TranslatorOptions.Builder()
                     .setSourceLanguage(src)
@@ -45,7 +63,13 @@ object Translator {
         // Model bahasa diunduh sekali (perlu internet), setelah itu bisa offline
         Tasks.await(translator.downloadModelIfNeeded(DownloadConditions.Builder().build()))
 
-        return texts.map { Tasks.await(translator.translate(it)) }
+        for (i in misses) {
+            val out = Tasks.await(translator.translate(texts[i]))
+            if (memo.size >= MEMO_LIMIT) memo.clear()
+            memo[pair + "\u0001" + texts[i]] = out
+            result[i] = out
+        }
+        return result.map { it ?: "" }
     }
 
     /** Menebak bahasa dari teks. Kalau tidak yakin, dianggap bahasa Inggris. */

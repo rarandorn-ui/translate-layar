@@ -23,11 +23,13 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.speech.tts.TextToSpeech
 import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import com.google.mlkit.vision.common.InputImage
@@ -38,6 +40,7 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
+import java.util.Locale
 import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -56,13 +59,18 @@ class TranslateService : Service() {
         const val ACTION_STOP = "com.bosmuda.translatelayar.STOP"
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_DATA = "data"
+        const val ACTION_APPLY = "com.bosmuda.translatelayar.APPLY"
+
+        /** Benar selama layanan sedang berjalan, dipakai MainActivity untuk tahu statusnya. */
+        @Volatile
+        var isRunning = false
 
         private const val CHANNEL_ID = "translate_layar"
         private const val NOTIF_ID = 1
         private const val CAPTURE_INTERVAL_MS = 1500L
         private const val HIDE_DELAY_MS = 150L
-        private const val COLOR_OFF = "#616161"
-        private const val COLOR_ON = "#2E7D32"
+        private const val COLOR_OFF = "#212121"
+        private const val COLOR_ON = "#D32F2F"
     }
 
     private lateinit var windowManager: WindowManager
@@ -74,8 +82,18 @@ class TranslateService : Service() {
     private var screenW = 0
     private var screenH = 0
     private var bubbleSizePx = 0
+    private var textPct = 100
+    private var menuView: LinearLayout? = null
+    private var oneShot = false
+    private enum class OneShot { TRANSLATE, COPY, SPEAK }
+    private var oneShotMode = OneShot.TRANSLATE
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private val clearOneShot = Runnable { overlay?.setItems(emptyList()) }
 
     private var projection: MediaProjection? = null
+    // Frame terakhir, dipakai kalau layar diam dan tidak ada frame baru
+    private var lastFrame: Bitmap? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
     private var recognizer: TextRecognizer? = null
@@ -87,12 +105,18 @@ class TranslateService : Service() {
     private var translateOn = false
     private var busy = false
 
+    // Sidik jari layar. ocrSig = layar yang sedang diterjemahkan,
+    // shownSig = layar yang hasil terjemahannya sedang tampil.
+    private var ocrSig: IntArray? = null
+    private var shownSig: IntArray? = null
+
     private val loopRunnable = Runnable { runCycle() }
 
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         handler = Handler(Looper.getMainLooper())
+        tts = TextToSpeech(this) { status -> ttsReady = status == TextToSpeech.SUCCESS }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -102,6 +126,7 @@ class TranslateService : Service() {
 
         when (intent.action) {
             ACTION_STOP -> stopEverything()
+            ACTION_APPLY -> applySizes()
             ACTION_START -> {
                 startForegroundCompat()
                 val data = extraData(intent)
@@ -144,7 +169,7 @@ class TranslateService : Service() {
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= 26) {
-            val channel = NotificationChannel(CHANNEL_ID, "Translate Layar", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(CHANNEL_ID, "RTS", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
@@ -162,7 +187,7 @@ class TranslateService : Service() {
             Notification.Builder(this)
         }
         return builder
-            .setContentTitle("Translate Layar aktif")
+            .setContentTitle("RTS aktif")
             .setContentText("Ketuk bulatan untuk menyalakan atau mematikan terjemahan")
             .setSmallIcon(android.R.drawable.ic_menu_view)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Hentikan", stopPi)
@@ -180,7 +205,27 @@ class TranslateService : Service() {
         densityDpi = dm.densityDpi
         screenW = dm.widthPixels
         screenH = dm.heightPixels
-        bubbleSizePx = (56 * density).roundToInt()
+        readSizes()
+    }
+
+    /** Baca ukuran dari pengaturan: ukuran bulatan (dp) dan ukuran tulisan (%). */
+    private fun readSizes() {
+        val p = prefs()
+        bubbleSizePx = (p.getInt("bubble_dp", 56) * density).roundToInt()
+        textPct = p.getInt("text_pct", 100)
+    }
+
+    /** Terapkan ukuran baru ke bulatan dan overlay yang sedang tampil. */
+    private fun applySizes() {
+        readSizes()
+        overlay?.textScale = textPct / 100f
+        val tv = bubble ?: return
+        val lp = bubbleLp ?: return
+        lp.width = bubbleSizePx
+        lp.height = bubbleSizePx
+        if (lp.x > screenW / 2) lp.x = screenW - bubbleSizePx
+        if (lp.y > screenH - bubbleSizePx) lp.y = screenH - bubbleSizePx
+        windowManager.updateViewLayout(tv, lp)
     }
 
     private fun startCapture(resultCode: Int, data: Intent) {
@@ -220,6 +265,7 @@ class TranslateService : Service() {
         recognizer = buildRecognizer(Languages.byCode(src, Languages.SOURCE).script)
 
         addViews()
+        isRunning = true
         toast("Bulatan siap. Ketuk bulatan untuk mulai")
     }
 
@@ -248,6 +294,7 @@ class TranslateService : Service() {
                 PixelFormat.TRANSLUCENT
             )
         )
+        ov.textScale = textPct / 100f
         overlay = ov
 
         // Bulatan: bisa digeser, tap untuk nyala/mati
@@ -283,6 +330,7 @@ class TranslateService : Service() {
         var startX = 0
         var startY = 0
         var moved = false
+        var downTime = 0L
 
         tv.setOnTouchListener { _, ev ->
             when (ev.action) {
@@ -292,6 +340,7 @@ class TranslateService : Service() {
                     startX = lp.x
                     startY = lp.y
                     moved = false
+                    downTime = System.currentTimeMillis()
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -306,7 +355,13 @@ class TranslateService : Service() {
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (moved) snapToEdge(tv, lp) else toggleTranslate()
+                    if (moved) {
+                        snapToEdge(tv, lp)
+                    } else if (System.currentTimeMillis() - downTime > 450L) {
+                        toggleMenu()
+                    } else {
+                        toggleTranslate()
+                    }
                     true
                 }
                 else -> false
@@ -332,7 +387,10 @@ class TranslateService : Service() {
 
     private fun toggleTranslate() {
         translateOn = !translateOn
+        handler.removeCallbacks(clearOneShot)
         updateBubbleColor()
+        ocrSig = null
+        shownSig = null
         if (translateOn) {
             toast("Terjemahan aktif")
             scheduleNext(0L)
@@ -369,13 +427,28 @@ class TranslateService : Service() {
             return
         }
 
+        val sig = signature(bmp)
+        if (sameScreen(sig, shownSig)) {
+            // Layar sama dengan yang sudah diterjemahkan, kotak sudah sesuai
+            finishCycle()
+            return
+        }
+        if (!sameScreen(sig, ocrSig)) {
+            // Layar berubah: kotak lama sudah tidak sesuai, hapus dulu
+            overlay?.setItems(emptyList())
+            ocrSig = sig
+        }
+
         rec.process(InputImage.fromBitmap(bmp, 0))
-            .addOnSuccessListener { result -> onOcrDone(result) }
-            .addOnFailureListener { finishCycle() }
+            .addOnSuccessListener { result -> onOcrDone(result, sig) }
+            .addOnFailureListener {
+                shownSig = sig
+                finishCycle()
+            }
     }
 
-    private fun onOcrDone(result: Text) {
-        if (!translateOn) {
+    private fun onOcrDone(result: Text, sig: IntArray) {
+        if (!translateOn && !oneShot) {
             finishCycle()
             return
         }
@@ -406,6 +479,7 @@ class TranslateService : Service() {
         }
 
         if (lines.isEmpty()) {
+            shownSig = sig
             finishCycle()
             return
         }
@@ -422,17 +496,24 @@ class TranslateService : Service() {
             } catch (e: Exception) {
                 handler.post {
                     toast("Gagal menerjemahkan: ${e.message?.take(80)}")
+                    shownSig = sig
                     finishCycle()
                 }
                 return@execute
             }
 
             handler.post {
-                if (translateOn) {
+                if (translateOn || oneShot) {
                     val items = lines.mapIndexed { i, pair ->
                         OverlayView.Item(pair.first, translated.getOrElse(i) { "" })
                     }
                     overlay?.setItems(items)
+                    shownSig = sig
+                    if (!translateOn) {
+                        // Hasil terjemahan sekali jalan hilang sendiri setelah 10 detik
+                        handler.removeCallbacks(clearOneShot)
+                        handler.postDelayed(clearOneShot, 10_000L)
+                    }
                 }
                 finishCycle()
             }
@@ -441,6 +522,7 @@ class TranslateService : Service() {
 
     private fun finishCycle() {
         busy = false
+        oneShot = false
         if (translateOn) scheduleNext(CAPTURE_INTERVAL_MS)
     }
 
@@ -448,15 +530,202 @@ class TranslateService : Service() {
         overlay?.visibility = if (hidden) View.INVISIBLE else View.VISIBLE
     }
 
+    /** Terjemahan atau salin teks sekali dari layar, lalu berhenti. */
+    private fun runOnce() {
+        if (busy) {
+            toast("Tunggu sebentar, lalu coba lagi")
+            return
+        }
+        if (recognizer == null || imageReader == null) return
+        busy = true
+        oneShot = true
+        handler.removeCallbacks(clearOneShot)
+        overlay?.setItems(emptyList())
+        setOverlayHidden(true)
+        handler.postDelayed({ captureOnce(0) }, HIDE_DELAY_MS)
+    }
+
+    private fun captureOnce(tries: Int) {
+        val bmp = acquireBitmap() ?: lastFrame
+        if (bmp == null) {
+            // Layar belum menghasilkan frame baru, coba lagi sebentar
+            if (tries < 5) {
+                handler.postDelayed({ captureOnce(tries + 1) }, 200L)
+            } else {
+                setOverlayHidden(false)
+                toast("Gagal mengambil layar")
+                finishCycle()
+            }
+            return
+        }
+        setOverlayHidden(false)
+        val rec = recognizer
+        if (rec == null) {
+            finishCycle()
+            return
+        }
+        val sig = signature(bmp)
+        rec.process(InputImage.fromBitmap(bmp, 0))
+            .addOnSuccessListener { result ->
+                when (oneShotMode) {
+                    OneShot.COPY -> {
+                        copyText(result)
+                        finishCycle()
+                    }
+                    OneShot.SPEAK -> {
+                        speakText(result)
+                        finishCycle()
+                    }
+                    OneShot.TRANSLATE -> onOcrDone(result, sig)
+                }
+            }
+            .addOnFailureListener { finishCycle() }
+    }
+
+    private fun copyText(result: Text) {
+        val text = result.textBlocks.joinToString("\n") { it.text }.trim()
+        if (text.isEmpty()) {
+            toast("Tidak ada teks di layar")
+            return
+        }
+        // Clipboard hanya bisa diisi oleh aplikasi yang sedang di depan,
+        // jadi disalin lewat activity kecil yang langsung tampil lalu tertutup
+        startActivity(
+            Intent(this, CopyTextActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .putExtra(CopyTextActivity.EXTRA_TEXT, text)
+        )
+    }
+
+    /** Baca teks yang ada di layar dengan suara (mesin suara bawaan HP). */
+    private fun speakText(result: Text) {
+        val text = result.textBlocks.joinToString("\n") { it.text }.trim()
+        if (text.isEmpty()) {
+            toast("Tidak ada teks di layar")
+            return
+        }
+        val engine = tts
+        if (engine == null || !ttsReady) {
+            toast("Mesin suara belum siap, coba lagi sebentar")
+            return
+        }
+        val (src, _) = currentLangs()
+        val res = engine.setLanguage(ttsLocale(src))
+        if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
+            toast("Suara untuk bahasa ini belum terpasang di HP")
+            return
+        }
+        engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "baca-layar")
+    }
+
+    private fun ttsLocale(code: String): Locale =
+        if (code == "auto") Locale.getDefault() else Locale.forLanguageTag(code)
+
+    private fun dp(v: Int): Int = (v * density).roundToInt()
+
+    /** Menu kecil di dekat bulatan, dibuka dengan tekan lama. */
+    private fun toggleMenu() {
+        if (menuView != null) {
+            closeMenu()
+            return
+        }
+        val lp = bubbleLp ?: return
+        val menu = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(14).toFloat()
+                setColor(Color.WHITE)
+            }
+            setPadding(0, dp(6), 0, dp(6))
+            elevation = dp(6).toFloat()
+        }
+        addMenuItem(menu, "🌐  Terjemahan sekali") {
+            closeMenu()
+            oneShotMode = OneShot.TRANSLATE
+            runOnce()
+        }
+        addMenuItem(menu, "📋  Salin teks") {
+            closeMenu()
+            oneShotMode = OneShot.COPY
+            runOnce()
+        }
+        addMenuItem(menu, "🔊  Baca teks") {
+            closeMenu()
+            oneShotMode = OneShot.SPEAK
+            runOnce()
+        }
+        addMenuItem(menu, "✖  Tutup") { closeMenu() }
+
+        val menuLp = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = (if (lp.x > screenW / 2) lp.x - dp(170) else lp.x).coerceAtLeast(0)
+            // Di bawah bulatan; kalau bulatan ada di separuh bawah layar, menu dibuka ke atas
+            y = if (lp.y > screenH / 2) (lp.y - dp(220)).coerceAtLeast(0) else lp.y + bubbleSizePx + dp(8)
+        }
+        windowManager.addView(menu, menuLp)
+        menuView = menu
+    }
+
+    private fun addMenuItem(parent: LinearLayout, label: String, onClick: () -> Unit) {
+        val tv = TextView(this).apply {
+            text = label
+            textSize = 16f
+            setTextColor(Color.parseColor("#111111"))
+            setPadding(dp(18), dp(12), dp(18), dp(12))
+            setOnClickListener { onClick() }
+        }
+        parent.addView(tv)
+    }
+
+    private fun closeMenu() {
+        menuView?.let { runCatching { windowManager.removeView(it) } }
+        menuView = null
+    }
+
+    /** Sidik jari layar: sampel 24x48 piksel, untuk tahu apakah layar berubah. */
+    private fun signature(bmp: Bitmap): IntArray {
+        val cols = 24
+        val rows = 48
+        val stepX = bmp.width / cols
+        val stepY = bmp.height / rows
+        val out = IntArray(cols * rows)
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                out[r * cols + c] = bmp.getPixel(c * stepX + stepX / 2, r * stepY + stepY / 2)
+            }
+        }
+        return out
+    }
+
+    /** Dianggap layar yang sama kalau bedanya kecil (jam, kursor, dan sejenisnya). */
+    private fun sameScreen(a: IntArray?, b: IntArray?): Boolean {
+        if (a == null || b == null || a.size != b.size) return false
+        var diff = 0
+        for (i in a.indices) {
+            if (a[i] != b[i]) diff++
+        }
+        return diff <= a.size * 0.03
+    }
+
     /** Ambil satu frame terbaru dari layar. Mengembalikan null kalau tidak ada frame baru. */
     private fun acquireBitmap(): Bitmap? {
         val reader = imageReader ?: return null
         val image = reader.acquireLatestImage() ?: return null
-        return try {
+        val bmp = try {
             imageToBitmap(image)
         } finally {
             image.close()
         }
+        lastFrame = bmp
+        return bmp
     }
 
     private fun imageToBitmap(image: Image): Bitmap {
@@ -483,6 +752,9 @@ class TranslateService : Service() {
     // ---------- Berhenti ----------
 
     private fun teardown() {
+        isRunning = false
+        closeMenu()
+        oneShot = false
         translateOn = false
         busy = false
         handler.removeCallbacksAndMessages(null)
@@ -501,6 +773,10 @@ class TranslateService : Service() {
         bubbleLp = null
         overlay?.let { runCatching { windowManager.removeView(it) } }
         overlay = null
+        ttsReady = false
+        tts?.stop()
+        tts?.shutdown()
+        tts = null
     }
 
     private fun stopEverything() {

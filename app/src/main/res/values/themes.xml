@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.TranslateLayar" parent="Theme.AppCompat.Light.DarkActionBar" />
+    <style name="Theme.TranslateLayar" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">#D32F2F</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondaryContainer">#FFCDD2</item>
+        <item name="colorOnSecondaryContainer">#B71C1C</item>
+        <item name="android:colorBackground">#F5F5F5</item>
+        <item name="android:statusBarColor">#F5F5F5</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
 </resources>

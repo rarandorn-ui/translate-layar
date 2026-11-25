@@ -9,21 +9,33 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Button
-import android.widget.EditText
+import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.google.android.material.bottomnavigation.BottomNavigationView
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        const val BUBBLE_MIN = 36
+        const val BUBBLE_MAX = 80
+        const val TEXT_MIN = 50
+        const val TEXT_MAX = 150
+    }
+
     private lateinit var spSource: Spinner
     private lateinit var spTarget: Spinner
-    private lateinit var etKey: EditText
+    private lateinit var sbBubble: SeekBar
+    private lateinit var tvBubbleVal: TextView
+    private lateinit var sbText: SeekBar
+    private lateinit var tvTextVal: TextView
     private lateinit var tvStatus: TextView
 
     // Hasil izin rekam layar (MediaProjection)
@@ -48,12 +60,37 @@ class MainActivity : AppCompatActivity() {
 
         spSource = findViewById(R.id.spSource)
         spTarget = findViewById(R.id.spTarget)
-        etKey = findViewById(R.id.etKey)
+        sbBubble = findViewById(R.id.sbBubble)
+        tvBubbleVal = findViewById(R.id.tvBubbleVal)
+        sbText = findViewById(R.id.sbText)
+        tvTextVal = findViewById(R.id.tvTextVal)
         tvStatus = findViewById(R.id.tvStatus)
 
         spSource.adapter = langAdapter(Languages.SOURCE)
         spTarget.adapter = langAdapter(Languages.TARGET)
+
+        sbBubble.max = BUBBLE_MAX - BUBBLE_MIN
+        sbText.max = TEXT_MAX - TEXT_MIN
+        val changed = object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                updateLabels()
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        }
+        sbBubble.setOnSeekBarChangeListener(changed)
+        sbText.setOnSeekBarChangeListener(changed)
         loadSettings()
+
+        // Navigasi bawah: Beranda dan Pengaturan
+        val pageHome = findViewById<View>(R.id.pageHome)
+        val pageSettings = findViewById<View>(R.id.pageSettings)
+        findViewById<BottomNavigationView>(R.id.bottomNav).setOnItemSelectedListener { item ->
+            val isHome = item.itemId == R.id.navHome
+            pageHome.visibility = if (isHome) View.VISIBLE else View.GONE
+            pageSettings.visibility = if (isHome) View.GONE else View.VISIBLE
+            true
+        }
 
         findViewById<Button>(R.id.btnSave).setOnClickListener {
             saveSettings()
@@ -82,15 +119,18 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         val overlayOk = Settings.canDrawOverlays(this)
-        val keyOk = prefs().getString("api_key", "").orEmpty().isNotBlank()
         tvStatus.text = buildString {
             appendLine("Izin tampil di atas aplikasi lain: ${if (overlayOk) "sudah" else "belum"}")
-            appendLine("API key: ${if (keyOk) "sudah diisi" else "belum diisi"}")
+            appendLine("Kalau layanan sedang jalan, ukuran langsung berubah saat Simpan pengaturan.")
         }
     }
 
     private fun startFlow() {
         saveSettings()
+        if (TranslateService.isRunning) {
+            toast("Layanan sudah berjalan. Ketuk bulatan untuk memakainya.")
+            return
+        }
         if (!Settings.canDrawOverlays(this)) {
             toast("Izinkan 'tampil di atas aplikasi lain' dulu")
             requestOverlayPermission()
@@ -131,19 +171,33 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadSettings() {
         val p = prefs()
-        etKey.setText(p.getString("api_key", ""))
         val src = p.getString("source", "auto") ?: "auto"
         val tgt = p.getString("target", "id") ?: "id"
         spSource.setSelection(Languages.SOURCE.indexOfFirst { it.code == src }.coerceAtLeast(0))
         spTarget.setSelection(Languages.TARGET.indexOfFirst { it.code == tgt }.coerceAtLeast(0))
+        sbBubble.progress = p.getInt("bubble_dp", 56) - BUBBLE_MIN
+        sbText.progress = p.getInt("text_pct", 100) - TEXT_MIN
+        updateLabels()
+    }
+
+    private fun updateLabels() {
+        tvBubbleVal.text = "${sbBubble.progress + BUBBLE_MIN} dp"
+        tvTextVal.text = "${sbText.progress + TEXT_MIN}%"
     }
 
     private fun saveSettings() {
         prefs().edit()
-            .putString("api_key", etKey.text.toString().trim())
             .putString("source", Languages.SOURCE[spSource.selectedItemPosition].code)
             .putString("target", Languages.TARGET[spTarget.selectedItemPosition].code)
+            .putInt("bubble_dp", sbBubble.progress + BUBBLE_MIN)
+            .putInt("text_pct", sbText.progress + TEXT_MIN)
             .apply()
+        // Kalau layanan sedang jalan, terapkan ukuran baru sekarang juga
+        if (TranslateService.isRunning) {
+            startService(
+                Intent(this, TranslateService::class.java).setAction(TranslateService.ACTION_APPLY)
+            )
+        }
     }
 
     private fun toast(msg: String) {
