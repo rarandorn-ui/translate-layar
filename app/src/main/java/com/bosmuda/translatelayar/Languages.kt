@@ -17,7 +17,8 @@ object Languages {
         Lang("Spanyol", "es"),
         Lang("Mandarin", "zh", Script.CHINESE),
         Lang("Jepang", "ja", Script.JAPANESE),
-        Lang("Korea", "ko", Script.KOREAN)
+        Lang("Korea", "ko", Script.KOREAN),
+        Lang("Vietnam", "vi")
     )
 
     /** Bahasa tujuan. */
@@ -29,7 +30,10 @@ object Languages {
         Lang("Spanyol", "es"),
         Lang("Mandarin", "zh"),
         Lang("Jepang", "ja"),
-        Lang("Korea", "ko")
+        Lang("Korea", "ko"),
+        Lang("Arab", "ar"),
+        Lang("Thailand", "th"),
+        Lang("Vietnam", "vi")
     )
 
     fun byCode(code: String, list: List<Lang>): Lang =
