@@ -266,7 +266,7 @@ class TranslateService : Service() {
 
         addViews()
         isRunning = true
-        toast("Bulatan siap. Ketuk bulatan untuk mulai")
+        toast("Bulatan siap. Ketuk untuk terjemahan, tekan lama untuk menu")
     }
 
     private fun buildRecognizer(script: Script): TextRecognizer = when (script) {
@@ -447,6 +447,12 @@ class TranslateService : Service() {
             }
     }
 
+    /** Tinggi bilah status di layar (jam, sinyal, baterai). */
+    private fun statusBarPx(): Int {
+        val id = resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (id > 0) resources.getDimensionPixelSize(id) else dp(28)
+    }
+
     private fun onOcrDone(result: Text, sig: IntArray) {
         if (!translateOn && !oneShot) {
             finishCycle()
@@ -454,22 +460,24 @@ class TranslateService : Service() {
         }
 
         // Abaikan teks yang tertutup bulatan
-        val lp = bubbleLp
-        val bubbleRect = if (lp != null) {
+        // Posisi bulatan dari layar (sesuai posisi yang benar-benar tampil)
+        val bubbleRect = bubble?.let { view ->
+            val loc = IntArray(2)
+            view.getLocationOnScreen(loc)
             RectF(
-                lp.x.toFloat(),
-                lp.y.toFloat(),
-                (lp.x + bubbleSizePx).toFloat(),
-                (lp.y + bubbleSizePx).toFloat()
+                loc[0].toFloat(),
+                loc[1].toFloat(),
+                (loc[0] + bubbleSizePx).toFloat(),
+                (loc[1] + bubbleSizePx).toFloat()
             )
-        } else {
-            RectF()
-        }
+        } ?: RectF()
 
         val lines = ArrayList<Pair<RectF, String>>()
         for (block in result.textBlocks) {
             for (line in block.lines) {
                 val box = line.boundingBox ?: continue
+                // Abaikan teks di bilah status (jam, sinyal, baterai)
+                if (box.bottom <= statusBarPx()) continue
                 val rect = RectF(box)
                 if (RectF.intersects(rect, bubbleRect)) continue
                 val text = line.text.trim()

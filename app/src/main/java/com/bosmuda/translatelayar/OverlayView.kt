@@ -24,8 +24,9 @@ class OverlayView(context: Context) : View(context) {
             invalidate()
         }
 
+    // Putih penuh, supaya tulisan asli di bawahnya tidak kelihatan
     private val bgPaint = Paint().apply {
-        color = Color.argb(235, 255, 255, 255)
+        color = Color.WHITE
         style = Paint.Style.FILL
     }
 
@@ -40,22 +41,54 @@ class OverlayView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+
+        // Koordinat hasil OCR memakai layar penuh. Kalau jendela overlay ternyata
+        // mulai di bawah bilah status, gambar digeser supaya sejajar dengan teks asli.
+        val loc = IntArray(2)
+        getLocationOnScreen(loc)
+        val minLeft = loc[0].toFloat()
+        val minTop = loc[1].toFloat()
+        val screenRight = loc[0] + width - 2f
+
+        canvas.save()
+        canvas.translate(-minLeft, -minTop)
+
         val scale = textScale.coerceAtLeast(0.3f)
         for (item in items) {
-            // Kalau tulisan diperbesar, kotak boleh ikut melebar
-            val maxWidth = item.rect.width() * maxOf(1f, scale) - 4f
-            var size = item.rect.height() * 0.8f * scale
-            textPaint.textSize = size
-            while (size > 8f && textPaint.measureText(item.text) > maxWidth) {
-                size -= 1f
-                textPaint.textSize = size
-            }
-            val textWidth = textPaint.measureText(item.text)
-            val right = maxOf(item.rect.right, item.rect.left + textWidth + 4f)
-            canvas.drawRect(item.rect.left, item.rect.top, right, item.rect.bottom, bgPaint)
+            // Kotak sedikit lebih besar dari teks asli supaya tulisan asli tertutup rapi
+            val pad = item.rect.height() * 0.12f
+            val left = (item.rect.left - 2f).coerceAtLeast(minLeft)
+            val top = item.rect.top - pad
+            val bottom = item.rect.bottom + pad
+            val available = screenRight - left - 4f
+            val originalWidth = item.rect.width() * maxOf(1f, scale)
 
-            val baseline = item.rect.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
-            canvas.drawText(item.text, item.rect.left + 2f, baseline, textPaint)
+            // Tulisan boleh sedikit lebih lebar dari aslinya sebelum diperkecil,
+            // dan tidak boleh keluar dari tepi layar
+            val wideLimit = minOf(available, originalWidth * 1.25f)
+            fitText(item.text, item.rect.height() * 0.8f * scale, wideLimit)
+            if (textPaint.measureText(item.text) > available) {
+                fitText(item.text, textPaint.textSize, available)
+            }
+
+            val textWidth = textPaint.measureText(item.text)
+            val right = minOf(screenRight, left + maxOf(originalWidth, textWidth + 4f))
+            canvas.drawRect(left, top, right, bottom, bgPaint)
+
+            val baseline = (top + bottom) / 2f - (textPaint.descent() + textPaint.ascent()) / 2f
+            canvas.drawText(item.text, left + 2f, baseline, textPaint)
+        }
+
+        canvas.restore()
+    }
+
+    /** Kecilkan tulisan sampai muat di lebar [maxWidth]. Ukuran akhirnya disimpan di textPaint. */
+    private fun fitText(text: String, startSize: Float, maxWidth: Float) {
+        var size = startSize
+        textPaint.textSize = size
+        while (size > 8f && textPaint.measureText(text) > maxWidth) {
+            size -= 1f
+            textPaint.textSize = size
         }
     }
 }
