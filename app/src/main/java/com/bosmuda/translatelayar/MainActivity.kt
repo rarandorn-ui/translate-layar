@@ -44,8 +44,6 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val BUBBLE_MIN = 36
         const val BUBBLE_MAX = 80
-        const val TEXT_MIN = 50
-        const val TEXT_MAX = 150
         const val TTS_MIN = 50
         const val TTS_MAX = 200
         const val RELEASE_API = "https://api.github.com/repos/rarandorn-ui/translate-layar/releases/latest"
@@ -56,8 +54,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var spTarget: Spinner
     private lateinit var sbBubble: SeekBar
     private lateinit var tvBubbleVal: TextView
-    private lateinit var sbText: SeekBar
-    private lateinit var tvTextVal: TextView
     private lateinit var tvStatus: TextView
     private lateinit var tvBuild: TextView
 
@@ -135,8 +131,6 @@ class MainActivity : AppCompatActivity() {
         spTarget = findViewById(R.id.spTarget)
         sbBubble = findViewById(R.id.sbBubble)
         tvBubbleVal = findViewById(R.id.tvBubbleVal)
-        sbText = findViewById(R.id.sbText)
-        tvTextVal = findViewById(R.id.tvTextVal)
         sbRate = findViewById(R.id.sbRate)
         tvRateVal = findViewById(R.id.tvRateVal)
         sbPitch = findViewById(R.id.sbPitch)
@@ -154,7 +148,6 @@ class MainActivity : AppCompatActivity() {
         spUi.setSelection(if (I18n.isEnglish(this)) 1 else 0)
 
         sbBubble.max = BUBBLE_MAX - BUBBLE_MIN
-        sbText.max = TEXT_MAX - TEXT_MIN
         sbRate.max = TTS_MAX - TTS_MIN
         sbPitch.max = TTS_MAX - TTS_MIN
         val changed = object : SeekBar.OnSeekBarChangeListener {
@@ -165,7 +158,6 @@ class MainActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(sb: SeekBar?) {}
         }
         sbBubble.setOnSeekBarChangeListener(changed)
-        sbText.setOnSeekBarChangeListener(changed)
         sbRate.setOnSeekBarChangeListener(changed)
         sbPitch.setOnSeekBarChangeListener(changed)
         loadSettings()
@@ -306,7 +298,6 @@ class MainActivity : AppCompatActivity() {
         spSource.setSelection(Languages.SOURCE.indexOfFirst { it.code == src }.coerceAtLeast(0))
         spTarget.setSelection(Languages.TARGET.indexOfFirst { it.code == tgt }.coerceAtLeast(0))
         sbBubble.progress = p.getInt("bubble_dp", 56) - BUBBLE_MIN
-        sbText.progress = p.getInt("text_pct", 100) - TEXT_MIN
         sbRate.progress = p.getInt("tts_rate", 100) - TTS_MIN
         sbPitch.progress = p.getInt("tts_pitch", 100) - TTS_MIN
         updateLabels()
@@ -314,7 +305,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateLabels() {
         tvBubbleVal.text = "${sbBubble.progress + BUBBLE_MIN} dp"
-        tvTextVal.text = "${sbText.progress + TEXT_MIN}%"
         tvRateVal.text = "${sbRate.progress + TTS_MIN}%"
         tvPitchVal.text = "${sbPitch.progress + TTS_MIN}%"
     }
@@ -328,7 +318,6 @@ class MainActivity : AppCompatActivity() {
             .putString("source", Languages.SOURCE[spSource.selectedItemPosition].code)
             .putString("target", Languages.TARGET[spTarget.selectedItemPosition].code)
             .putInt("bubble_dp", sbBubble.progress + BUBBLE_MIN)
-            .putInt("text_pct", sbText.progress + TEXT_MIN)
             .putInt("tts_rate", sbRate.progress + TTS_MIN)
             .putInt("tts_pitch", sbPitch.progress + TTS_MIN)
             .apply()

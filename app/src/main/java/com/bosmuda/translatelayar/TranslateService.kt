@@ -52,7 +52,7 @@ import kotlin.math.roundToInt
  * Layanan latar yang:
  * - menampilkan bulatan mengambang di pinggir layar (tap = nyala/mati terjemahan)
  * - merekam layar lewat MediaProjection, lalu mengenali teks (ML Kit, di HP)
- * - menerjemahkan teks (Google Cloud Translation, lewat internet)
+ * - menerjemahkan teks (ML Kit, di HP, tanpa internet setelah modelnya diunduh)
  * - menggambar hasil terjemahan di atas teks aslinya
  */
 class TranslateService : Service() {
@@ -87,7 +87,6 @@ class TranslateService : Service() {
     private var screenW = 0
     private var screenH = 0
     private var bubbleSizePx = 0
-    private var textPct = 100
     private var menuView: LinearLayout? = null
     private var picker: View? = null
     // Salin area: layar seleksi yang sedang tampil, dan salinan frame untuk dipotong
@@ -218,17 +217,15 @@ class TranslateService : Service() {
         readSizes()
     }
 
-    /** Baca ukuran dari pengaturan: ukuran bulatan (dp) dan ukuran tulisan (%). */
+    /** Baca ukuran bulatan dari pengaturan (dp). */
     private fun readSizes() {
         val p = prefs()
         bubbleSizePx = (p.getInt("bubble_dp", 56) * density).roundToInt()
-        textPct = p.getInt("text_pct", 100)
     }
 
-    /** Terapkan ukuran baru ke bulatan dan overlay yang sedang tampil. */
+    /** Terapkan ukuran baru ke bulatan yang sedang tampil. */
     private fun applySizes() {
         readSizes()
-        overlay?.textScale = textPct / 100f
         val tv = bubble ?: return
         val lp = bubbleLp ?: return
         lp.width = bubbleSizePx
@@ -291,15 +288,17 @@ class TranslateService : Service() {
     /**
      * Menyiapkan model terjemahan di latar belakang saat layanan mulai,
      * supaya tidak perlu menunggu saat teks pertama kali diterjemahkan.
-     * Kalau bahasa asal Otomatis, Inggris dipakai sebagai perkiraan karena paling umum.
+     * Halaman sering campur bahasa, jadi selain bahasa pilihan, Inggris juga disiapkan.
+     * Kalau bahasa asal Otomatis, Jepang dan Inggris yang disiapkan karena paling sering muncul.
      */
     private fun prepareModels() {
         val (src, tgt) = currentLangs()
-        val from = if (src == "auto") "en" else src
-        if (from == tgt) return
+        val froms = if (src == "auto") listOf("ja", "en") else listOf(src, "en")
+        val pairs = froms.distinct().filter { it != tgt }
+        if (pairs.isEmpty()) return
         Thread {
             try {
-                Translator.prepare(from, tgt)
+                for (from in pairs) Translator.prepare(from, tgt)
                 handler.post { if (isRunning) toast("Model terjemahan siap") }
             } catch (e: Exception) {
                 handler.post { if (isRunning) toast("Model terjemahan belum siap. Pastikan internet aktif") }
@@ -325,7 +324,6 @@ class TranslateService : Service() {
                 PixelFormat.TRANSLUCENT
             )
         )
-        ov.textScale = textPct / 100f
         overlay = ov
 
         // Bulatan: bisa digeser, tap untuk nyala/mati
@@ -551,12 +549,12 @@ class TranslateService : Service() {
 
 
         val (src, tgt) = currentLangs()
-        val sourceParam = if (src == "auto") null else src
+        val chosen = if (src == "auto") null else src
         val texts = lines.map { it.second }
 
         worker.execute {
             val translated: List<String> = try {
-                Translator.translate(texts, sourceParam, tgt)
+                Translator.translateMixed(texts, chosen, tgt)
             } catch (e: Exception) {
                 handler.post {
                     toast("Gagal menerjemahkan: ${e.message?.take(80)}")
@@ -568,8 +566,11 @@ class TranslateService : Service() {
 
             handler.post {
                 if (translateOn || oneShot) {
-                    val items = lines.mapIndexed { i, pair ->
-                        OverlayView.Item(pair.first, translated.getOrElse(i) { "" })
+                    val items = lines.mapIndexedNotNull { i, pair ->
+                        val out = translated.getOrElse(i) { "" }.trim()
+                        // Yang sudah dalam bahasa tujuan, atau gagal diterjemahkan, dibiarkan apa adanya
+                        if (out.isEmpty() || out == pair.second) null
+                        else OverlayView.Item(pair.first, out)
                     }
                     overlay?.setItems(items)
                     shownSig = sig
@@ -868,11 +869,11 @@ class TranslateService : Service() {
             return
         }
         val (src, tgt) = currentLangs()
-        val sourceParam = if (src == "auto") null else src
+        val chosen = if (src == "auto") null else src
         val texts = lines.map { it.second }
         worker.execute {
             val translated: List<String> = try {
-                Translator.translate(texts, sourceParam, tgt)
+                Translator.translateMixed(texts, chosen, tgt)
             } catch (e: Exception) {
                 handler.post {
                     toast("Gagal menerjemahkan: ${e.message?.take(80)}")

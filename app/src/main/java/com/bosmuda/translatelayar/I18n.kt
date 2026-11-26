@@ -225,7 +225,6 @@ object I18n {
         "Pengaturan" to "Settings",
         "Ukuran" to "Size",
         "Ukuran bulatan" to "Bubble size",
-        "Ukuran tulisan terjemahan" to "Translated text size",
         "Simpan pengaturan" to "Save settings",
         "Pembaruan" to "Updates",
         "Cek pembaruan" to "Check for updates",
