@@ -90,6 +90,9 @@ class TranslateService : Service() {
     private var textPct = 100
     private var menuView: LinearLayout? = null
     private var picker: View? = null
+    // Salin area: layar seleksi yang sedang tampil, dan salinan frame untuk dipotong
+    private var areaView: AreaSelectView? = null
+    private var areaSource: Bitmap? = null
     private var oneShot = false
     private enum class OneShot { TRANSLATE, COPY, SPEAK }
     private var oneShotMode = OneShot.TRANSLATE
@@ -194,10 +197,10 @@ class TranslateService : Service() {
             Notification.Builder(this)
         }
         return builder
-            .setContentTitle("RTTS aktif")
-            .setContentText("Ketuk bulatan untuk menyalakan atau mematikan terjemahan")
+            .setContentTitle(I18n.tr(this, "RTTS aktif"))
+            .setContentText(I18n.tr(this, "Ketuk bulatan untuk menyalakan atau mematikan terjemahan"))
             .setSmallIcon(android.R.drawable.ic_menu_view)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Hentikan", stopPi)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, I18n.tr(this, "Hentikan"), stopPi)
             .setOngoing(true)
             .build()
     }
@@ -546,7 +549,6 @@ class TranslateService : Service() {
             return
         }
 
-        val apiKey = prefs().getString("api_key", "").orEmpty()
 
         val (src, tgt) = currentLangs()
         val sourceParam = if (src == "auto") null else src
@@ -554,7 +556,7 @@ class TranslateService : Service() {
 
         worker.execute {
             val translated: List<String> = try {
-                Translator.translate(apiKey, texts, sourceParam, tgt)
+                Translator.translate(texts, sourceParam, tgt)
             } catch (e: Exception) {
                 handler.post {
                     toast("Gagal menerjemahkan: ${e.message?.take(80)}")
@@ -744,7 +746,7 @@ class TranslateService : Service() {
         val scroll = ScrollView(this).apply { addView(list) }
 
         val titleView = TextView(this).apply {
-            text = title
+            text = I18n.tr(this@TranslateService, title)
             textSize = 16f
             setTypeface(null, android.graphics.Typeface.BOLD)
             setTextColor(Color.parseColor("#D32F2F"))
@@ -811,7 +813,7 @@ class TranslateService : Service() {
 
     private fun pillButton(label: String, bg: Int, fg: Int, onClick: () -> Unit): TextView =
         TextView(this).apply {
-            text = label
+            text = I18n.tr(this@TranslateService, label)
             textSize = 15f
             setTextColor(fg)
             gravity = Gravity.CENTER
@@ -834,7 +836,7 @@ class TranslateService : Service() {
         toast("Menerjemahkan...")
         worker.execute {
             val out: List<String> = try {
-                Translator.translate("", lines, sourceParam, tgt)
+                Translator.translate(lines, sourceParam, tgt)
             } catch (e: Exception) {
                 handler.post { toast("Gagal menerjemahkan: ${e.message?.take(80)}") }
                 return@execute
@@ -870,7 +872,7 @@ class TranslateService : Service() {
         val texts = lines.map { it.second }
         worker.execute {
             val translated: List<String> = try {
-                Translator.translate("", texts, sourceParam, tgt)
+                Translator.translate(texts, sourceParam, tgt)
             } catch (e: Exception) {
                 handler.post {
                     toast("Gagal menerjemahkan: ${e.message?.take(80)}")
@@ -923,6 +925,10 @@ class TranslateService : Service() {
             oneShotMode = OneShot.COPY
             runOnce()
         }
+        addMenuItem(menu, "🔲  Salin area") {
+            closeMenu()
+            startAreaSelect()
+        }
         addMenuItem(menu, "🔊  Bacakan terjemahan") {
             closeMenu()
             oneShotMode = OneShot.SPEAK
@@ -949,7 +955,7 @@ class TranslateService : Service() {
 
     private fun addMenuItem(parent: LinearLayout, label: String, onClick: () -> Unit) {
         val tv = TextView(this).apply {
-            text = label
+            text = I18n.tr(this@TranslateService, label)
             textSize = 16f
             setTextColor(Color.parseColor("#111111"))
             setPadding(dp(18), dp(12), dp(18), dp(12))
@@ -961,6 +967,78 @@ class TranslateService : Service() {
     private fun closeMenu() {
         menuView?.let { runCatching { windowManager.removeView(it) } }
         menuView = null
+    }
+
+    /** Salin area: pengguna menggambar kotak di layar, lalu isi kotak itu dibaca dan disalin. */
+    private fun startAreaSelect() {
+        if (areaView != null) return
+        if (recognizer == null || imageReader == null) {
+            toast("Mulai RTTS dulu lewat tombol Mulai")
+            return
+        }
+        // Frame diambil sebelum kotak muncul, supaya yang dibaca isi layar, bukan kotak pilihannya
+        val bmp = acquireBitmap() ?: lastFrame
+        if (bmp == null) {
+            toast("Layar belum terbaca. Coba gulir layar sedikit, lalu ulangi")
+            return
+        }
+        areaSource = bmp.copy(Bitmap.Config.ARGB_8888, false)
+        val view = AreaSelectView(this, I18n.tr(this, "Geser jari untuk memilih area, lalu angkat jari")) { rect ->
+            handler.post { handleArea(rect) }
+        }
+        val lp = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        )
+        windowManager.addView(view, lp)
+        areaView = view
+    }
+
+    /** Dipanggil saat kotak selesai digambar. Area itu dipotong dari frame, dibaca, lalu disalin. */
+    private fun handleArea(rect: RectF?) {
+        areaView?.let { runCatching { windowManager.removeView(it) } }
+        areaView = null
+        val src = areaSource ?: return
+        areaSource = null
+        if (rect == null) {
+            src.recycle()
+            toast("Area terlalu kecil. Coba gambar kotak yang lebih besar")
+            return
+        }
+        // Koordinat layar disesuaikan dengan ukuran frame, supaya potongannya tepat
+        val sx = src.width.toFloat() / screenW
+        val sy = src.height.toFloat() / screenH
+        val left = (rect.left * sx).toInt().coerceIn(0, src.width - 1)
+        val top = (rect.top * sy).toInt().coerceIn(0, src.height - 1)
+        val right = (rect.right * sx).toInt().coerceIn(left + 1, src.width)
+        val bottom = (rect.bottom * sy).toInt().coerceIn(top + 1, src.height)
+        val crop = try {
+            Bitmap.createBitmap(src, left, top, right - left, bottom - top)
+        } catch (e: Exception) {
+            src.recycle()
+            toast("Area tidak bisa dipotong")
+            return
+        }
+        src.recycle()
+        val rec = recognizer
+        if (rec == null) {
+            crop.recycle()
+            return
+        }
+        rec.process(InputImage.fromBitmap(crop, 0))
+            .addOnSuccessListener { result ->
+                crop.recycle()
+                val text = result.text.trim()
+                if (text.isEmpty()) toast("Tidak ada tulisan di area itu") else sendToClipboard(text)
+            }
+            .addOnFailureListener {
+                crop.recycle()
+                toast("Area tidak terbaca")
+            }
     }
 
     /** Sidik jari layar: sampel 24x48 piksel, untuk tahu apakah layar berubah. */
@@ -1028,6 +1106,10 @@ class TranslateService : Service() {
         isRunning = false
         closeMenu()
         closePicker()
+        areaView?.let { runCatching { windowManager.removeView(it) } }
+        areaView = null
+        areaSource?.recycle()
+        areaSource = null
         oneShot = false
         translateOn = false
         busy = false
@@ -1057,6 +1139,6 @@ class TranslateService : Service() {
     }
 
     private fun toast(msg: String) {
-        Toast.makeText(applicationContext, msg, Toast.LENGTH_SHORT).show()
+        Toast.makeText(applicationContext, I18n.tr(applicationContext, msg), Toast.LENGTH_SHORT).show()
     }
 }

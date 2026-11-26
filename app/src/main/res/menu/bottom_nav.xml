@@ -9,6 +9,10 @@
         android:icon="@android:drawable/ic_menu_edit"
         android:title="Teks" />
     <item
+        android:id="@+id/navPercakapan"
+        android:icon="@android:drawable/ic_btn_speak_now"
+        android:title="Percakapan" />
+    <item
         android:id="@+id/navSettings"
         android:icon="@android:drawable/ic_menu_preferences"
         android:title="Pengaturan" />

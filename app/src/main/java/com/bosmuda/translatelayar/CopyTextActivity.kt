@@ -38,7 +38,7 @@ class CopyTextActivity : Activity() {
         if (text.isNotEmpty()) {
             val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             cm.setPrimaryClip(ClipData.newPlainText("teks layar", text))
-            Toast.makeText(this, "Teks disalin", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, I18n.tr(this, "Teks disalin"), Toast.LENGTH_SHORT).show()
         }
         finish()
     }

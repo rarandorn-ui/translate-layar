@@ -47,13 +47,13 @@ object Translator {
     }
 
     /**
-     * @param apiKey tidak dipakai lagi, hanya dibiarkan agar pemanggil tidak perlu diubah
+     * Tidak memakai API key apa pun. Terjemahan berjalan di HP lewat ML Kit.
      * @param source kode bahasa asal, atau null untuk deteksi otomatis
      * @param target kode bahasa tujuan
      * @return hasil terjemahan dengan urutan yang sama dengan [texts]
      */
     @Throws(Exception::class)
-    fun translate(apiKey: String, texts: List<String>, source: String?, target: String): List<String> {
+    fun translate(texts: List<String>, source: String?, target: String): List<String> {
         val tgt = TranslateLanguage.fromLanguageTag(target)
             ?: throw IllegalArgumentException("Bahasa tujuan belum didukung: $target")
 
@@ -139,6 +139,9 @@ object Translator {
         } catch (e: TimeoutException) {
             throw IllegalStateException(message, e)
         }
+
+    /** Dipakai dari luar untuk menebak kode bahasa teks. Harus dipanggil dari background thread. */
+    fun detectLanguageTag(text: String): String = detectLanguage(text)
 
     /** Menebak bahasa dari teks. Kalau tidak yakin, dianggap bahasa Inggris. */
     private fun detectLanguage(text: String): String {

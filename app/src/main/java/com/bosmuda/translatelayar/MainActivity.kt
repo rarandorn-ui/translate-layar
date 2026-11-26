@@ -67,6 +67,22 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etTeks: EditText
     private lateinit var tvHasilTeks: TextView
     private lateinit var btnSalinTeks: Button
+    private lateinit var btnBacaHasil: Button
+
+    // Halaman Percakapan: dua sisi bicara dengan bahasa berbeda
+    private lateinit var spSaya: Spinner
+    private lateinit var spLawan: Spinner
+    private lateinit var tvStatusPercakapan: TextView
+    private lateinit var tvPercakapan: TextView
+    private lateinit var btnBicaraSaya: Button
+    private lateinit var btnBicaraLawan: Button
+    private var sisiSaya = true
+    private val logPercakapan = StringBuilder()
+    private val percakapanLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val teks = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (teks.isNullOrBlank()) tvStatusPercakapan.text = I18n.tr(this, "Tidak ada suara yang terdengar. Coba lagi.")
+        else terjemahkanPercakapan(teks, sisiSaya)
+    }
     private var hasilTeks: String? = null
 
     // Kecepatan dan nada suara bacaan
@@ -90,6 +106,9 @@ class MainActivity : AppCompatActivity() {
     // Status suara bacaan, ditampilkan di Beranda
     private var speechStatus = "Suara bacaan: sedang disiapkan"
 
+    // Pilihan bahasa tampilan aplikasi: 0 = Indonesia, 1 = English
+    private lateinit var spUi: Spinner
+
     // Hasil izin rekam layar (MediaProjection)
     private val projectionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -109,6 +128,8 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        // Tulisan dari layout diganti ke Bahasa Inggris kalau pilihannya English
+        I18n.translateTree(this, window.decorView)
 
         spSource = findViewById(R.id.spSource)
         spTarget = findViewById(R.id.spTarget)
@@ -122,10 +143,15 @@ class MainActivity : AppCompatActivity() {
         tvPitchVal = findViewById(R.id.tvPitchVal)
         tvStatus = findViewById(R.id.tvStatus)
         tvBuild = findViewById(R.id.tvBuild)
-        tvBuild.text = "Build terpasang: ${localBuild()}"
+        tvBuild.text = I18n.tr(this, "Build terpasang: ") + localBuild()
 
         spSource.adapter = langAdapter(Languages.SOURCE)
         spTarget.adapter = langAdapter(Languages.TARGET)
+        spUi = findViewById(R.id.spUi)
+        spUi.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, listOf("Indonesia", "English")).also {
+            it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        spUi.setSelection(if (I18n.isEnglish(this)) 1 else 0)
 
         sbBubble.max = BUBBLE_MAX - BUBBLE_MIN
         sbText.max = TEXT_MAX - TEXT_MIN
@@ -148,14 +174,17 @@ class MainActivity : AppCompatActivity() {
         val pageHome = findViewById<View>(R.id.pageHome)
         val pageSettings = findViewById<View>(R.id.pageSettings)
         val pageTeks = findViewById<View>(R.id.pageTeks)
+        val pagePercakapan = findViewById<View>(R.id.pagePercakapan)
         findViewById<BottomNavigationView>(R.id.bottomNav).setOnItemSelectedListener { item ->
             pageHome.visibility = if (item.itemId == R.id.navHome) View.VISIBLE else View.GONE
             pageTeks.visibility = if (item.itemId == R.id.navTeks) View.VISIBLE else View.GONE
+            pagePercakapan.visibility = if (item.itemId == R.id.navPercakapan) View.VISIBLE else View.GONE
             pageSettings.visibility = if (item.itemId == R.id.navSettings) View.VISIBLE else View.GONE
             true
         }
 
         setupTeksPage()
+        setupPercakapanPage()
 
         val openSupport = View.OnClickListener {
             try {
@@ -167,7 +196,12 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnSupport).setOnClickListener(openSupport)
         findViewById<Button>(R.id.btnSupportHome).setOnClickListener(openSupport)
         findViewById<Button>(R.id.btnSave).setOnClickListener {
-            saveSettings()
+            val gantiBahasa = saveSettings()
+            if (gantiBahasa) {
+                // Bahasa tampilan berganti, jadi layar dibuat ulang supaya langsung terlihat
+                recreate()
+                return@setOnClickListener
+            }
             toast("Pengaturan disimpan")
         }
         findViewById<Button>(R.id.btnOverlay).setOnClickListener {
@@ -212,11 +246,12 @@ class MainActivity : AppCompatActivity() {
     private fun refreshStatus() {
         val overlayOk = Settings.canDrawOverlays(this)
         tvStatus.text = buildString {
-            appendLine("Izin tampil di atas aplikasi lain: ${if (overlayOk) "sudah" else "belum"}")
-            appendLine(modelStatus)
-            appendLine(speechStatus)
-            appendLine("Izin rekam layar diminta setiap kali layanan dimulai. Ini aturan Android.")
-            appendLine("Kalau layanan sedang jalan, ukuran langsung berubah saat Simpan pengaturan.")
+            // Di dalam buildString, "this" adalah StringBuilder, jadi konteks aplikasinya ditulis eksplisit
+            appendLine(I18n.tr(this@MainActivity, "Izin tampil di atas aplikasi lain: ${if (overlayOk) "sudah" else "belum"}"))
+            appendLine(I18n.tr(this@MainActivity, modelStatus))
+            appendLine(I18n.tr(this@MainActivity, speechStatus))
+            appendLine(I18n.tr(this@MainActivity, "Izin rekam layar diminta setiap kali layanan dimulai. Ini aturan Android."))
+            appendLine(I18n.tr(this@MainActivity, "Kalau layanan sedang jalan, ukuran langsung berubah saat Simpan pengaturan."))
         }
     }
 
@@ -257,7 +292,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun langAdapter(list: List<Lang>): ArrayAdapter<String> {
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, list.map { it.label })
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, list.map { I18n.tr(this, it.label) })
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         return adapter
     }
@@ -284,8 +319,12 @@ class MainActivity : AppCompatActivity() {
         tvPitchVal.text = "${sbPitch.progress + TTS_MIN}%"
     }
 
-    private fun saveSettings() {
+    /** Menyimpan pengaturan. Mengembalikan true kalau bahasa tampilan berganti, supaya layar dibuat ulang. */
+    private fun saveSettings(): Boolean {
+        val uiLama = if (I18n.isEnglish(this)) "en" else "id"
+        val uiBaru = if (spUi.selectedItemPosition == 1) "en" else "id"
         prefs().edit()
+            .putString("ui_lang", uiBaru)
             .putString("source", Languages.SOURCE[spSource.selectedItemPosition].code)
             .putString("target", Languages.TARGET[spTarget.selectedItemPosition].code)
             .putInt("bubble_dp", sbBubble.progress + BUBBLE_MIN)
@@ -302,6 +341,7 @@ class MainActivity : AppCompatActivity() {
                 Intent(this, TranslateService::class.java).setAction(TranslateService.ACTION_APPLY)
             )
         }
+        return uiBaru != uiLama
     }
 
     /**
@@ -361,6 +401,7 @@ class MainActivity : AppCompatActivity() {
         etTeks = findViewById(R.id.etTeks)
         tvHasilTeks = findViewById(R.id.tvHasilTeks)
         btnSalinTeks = findViewById(R.id.btnSalinTeks)
+        btnBacaHasil = findViewById(R.id.btnBacaHasil)
 
         spTeksSource.adapter = langAdapter(Languages.SOURCE)
         spTeksTarget.adapter = langAdapter(Languages.TARGET)
@@ -374,12 +415,93 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnTerjemahkanTeks).setOnClickListener { terjemahkanTeks() }
         findViewById<Button>(R.id.btnGambarTeks).setOnClickListener { gambarLauncher.launch("image/*") }
         findViewById<Button>(R.id.btnSuaraTeks).setOnClickListener { ketikSuara() }
+        findViewById<Button>(R.id.btnBacaTeks).setOnClickListener { bacaTeksAsal() }
+        findViewById<Button>(R.id.btnHapusTeks).setOnClickListener { etTeks.setText("") }
+        btnBacaHasil.setOnClickListener { bacaHasil() }
         btnSalinTeks.setOnClickListener {
             val text = hasilTeks ?: return@setOnClickListener
             val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             cm.setPrimaryClip(ClipData.newPlainText("terjemahan RTTS", text))
             toast("Hasil disalin")
         }
+    }
+
+    /** Halaman Percakapan: dua orang bicara bahasa berbeda, RTTS menerjemahkan dan membacakannya. */
+    private fun setupPercakapanPage() {
+        spSaya = findViewById(R.id.spSaya)
+        spLawan = findViewById(R.id.spLawan)
+        tvStatusPercakapan = findViewById(R.id.tvStatusPercakapan)
+        tvPercakapan = findViewById(R.id.tvPercakapan)
+        btnBicaraSaya = findViewById(R.id.btnBicaraSaya)
+        btnBicaraLawan = findViewById(R.id.btnBicaraLawan)
+
+        spSaya.adapter = langAdapter(Languages.TARGET)
+        spLawan.adapter = langAdapter(Languages.TARGET)
+        val p = prefs()
+        val kodeSaya = p.getString("chat_saya", "id") ?: "id"
+        val kodeLawan = p.getString("chat_lawan", "en") ?: "en"
+        spSaya.setSelection(Languages.TARGET.indexOfFirst { it.code == kodeSaya }.coerceAtLeast(0))
+        spLawan.setSelection(Languages.TARGET.indexOfFirst { it.code == kodeLawan }.coerceAtLeast(0))
+
+        btnBicaraSaya.setOnClickListener { bicaraPercakapan(true) }
+        btnBicaraLawan.setOnClickListener { bicaraPercakapan(false) }
+        findViewById<Button>(R.id.btnHapusPercakapan).setOnClickListener {
+            logPercakapan.setLength(0)
+            tvPercakapan.text = I18n.tr(this, "Tekan tombol mikrofon untuk mulai bicara.")
+            tvStatusPercakapan.text = ""
+        }
+    }
+
+    /** Membuka pengenal suara untuk salah satu sisi. Bahasa sisi itu dipakai untuk mengenali suaranya. */
+    private fun bicaraPercakapan(saya: Boolean) {
+        val kodeSaya = Languages.TARGET[spSaya.selectedItemPosition].code
+        val kodeLawan = Languages.TARGET[spLawan.selectedItemPosition].code
+        if (kodeSaya == kodeLawan) {
+            toast("Pilih dua bahasa yang berbeda")
+            return
+        }
+        prefs().edit().putString("chat_saya", kodeSaya).putString("chat_lawan", kodeLawan).apply()
+        sisiSaya = saya
+        val dari = if (saya) kodeSaya else kodeLawan
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, dari)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, if (saya) "Saya bicara" else "Lawan bicara")
+        }
+        try {
+            tvStatusPercakapan.text = I18n.tr(this, "Mendengarkan...")
+            percakapanLauncher.launch(intent)
+        } catch (e: ActivityNotFoundException) {
+            tvStatusPercakapan.text = ""
+            toast("HP ini belum punya layanan pengenalan suara")
+        }
+    }
+
+    /** Menerjemahkan ucapan, lalu membacakannya dengan suara bahasa sisi lawan bicara. */
+    private fun terjemahkanPercakapan(teks: String, dariSaya: Boolean) {
+        val kodeSaya = Languages.TARGET[spSaya.selectedItemPosition].code
+        val kodeLawan = Languages.TARGET[spLawan.selectedItemPosition].code
+        val dari = if (dariSaya) kodeSaya else kodeLawan
+        val ke = if (dariSaya) kodeLawan else kodeSaya
+        tvStatusPercakapan.text = I18n.tr(this, "Menerjemahkan...")
+        Thread {
+            val hasil = runCatching {
+                Translator.translate(listOf(teks), dari, ke).firstOrNull().orEmpty()
+            }
+            runOnUiThread {
+                if (!isDestroyed) {
+                    hasil.onSuccess { terjemahan ->
+                        val label = if (dariSaya) "Saya" else "Lawan"
+                        logPercakapan.append("$label: $teks\n→ $terjemahan\n\n")
+                        tvPercakapan.text = logPercakapan.toString()
+                        tvStatusPercakapan.text = ""
+                        bicara(terjemahan, ke)
+                    }.onFailure { e ->
+                        tvStatusPercakapan.text = I18n.tr(this, "Gagal menerjemahkan: ") + e.message
+                    }
+                }
+            }
+        }.start()
     }
 
     /** Menukar bahasa asal dan tujuan. Bahasa Otomatis tidak bisa ditukar. */
@@ -411,12 +533,13 @@ class MainActivity : AppCompatActivity() {
         val tgt = Languages.TARGET[spTeksTarget.selectedItemPosition].code
         prefs().edit().putString("text_source", src).putString("text_target", tgt).apply()
 
-        tvHasilTeks.text = "Sedang menerjemahkan..."
+        tvHasilTeks.text = I18n.tr(this, "Sedang menerjemahkan...")
         btnSalinTeks.isEnabled = false
+        btnBacaHasil.isEnabled = false
         val sourceParam = if (src == "auto") null else src
         Thread {
             val hasil = runCatching {
-                Translator.translate("", listOf(text), sourceParam, tgt).firstOrNull().orEmpty()
+                Translator.translate(listOf(text), sourceParam, tgt).firstOrNull().orEmpty()
             }
             runOnUiThread {
                 if (!isDestroyed) {
@@ -424,12 +547,44 @@ class MainActivity : AppCompatActivity() {
                         hasilTeks = teks
                         tvHasilTeks.text = teks
                         btnSalinTeks.isEnabled = teks.isNotBlank()
+                        btnBacaHasil.isEnabled = teks.isNotBlank()
                     }.onFailure { e ->
-                        tvHasilTeks.text = "Gagal menerjemahkan: ${e.message}"
+                        tvHasilTeks.text = I18n.tr(this, "Gagal menerjemahkan: ") + e.message
                     }
                 }
             }
         }.start()
+    }
+
+    /** Membacakan teks di kotak ketik. Kalau bahasanya Otomatis, bahasanya ditebak dulu supaya suaranya sesuai. */
+    private fun bacaTeksAsal() {
+        val text = etTeks.text.toString().trim()
+        if (text.isEmpty()) {
+            toast("Ketik teksnya dulu")
+            return
+        }
+        val src = Languages.SOURCE[spTeksSource.selectedItemPosition].code
+        if (src != "auto") {
+            bicara(text, src)
+            return
+        }
+        Thread {
+            val kode = runCatching { Translator.detectLanguageTag(text) }.getOrDefault("en")
+            runOnUiThread { if (!isDestroyed) bicara(text, kode) }
+        }.start()
+    }
+
+    /** Membacakan hasil terjemahan dengan bahasa tujuan. */
+    private fun bacaHasil() {
+        val text = hasilTeks ?: return
+        val tgt = Languages.TARGET[spTeksTarget.selectedItemPosition].code
+        bicara(text, tgt)
+    }
+
+    /** Membacakan teks dengan suara HP. Kalau gagal, pesannya ditampilkan. Harus dipanggil dari main thread. */
+    private fun bicara(text: String, kode: String) {
+        val masalah = Speaker.speak(text, kode)
+        if (masalah != null) toast(masalah)
     }
 
     /** Membaca tulisan dari foto yang dipilih, lalu mengisinya ke kotak ketik. */
@@ -488,9 +643,9 @@ class MainActivity : AppCompatActivity() {
                 }
                 val names = list.map { namaBahasa(it.language) }.toTypedArray<CharSequence>()
                 AlertDialog.Builder(this)
-                    .setTitle("Model terjemahan")
+                    .setTitle(I18n.tr(this, "Model terjemahan"))
                     .setItems(names) { _, which -> konfirmasiHapus(list[which]) }
-                    .setNegativeButton("Tutup", null)
+                    .setNegativeButton(I18n.tr(this, "Tutup"), null)
                     .show()
             }
             .addOnFailureListener { toast("Gagal membaca daftar model") }
@@ -499,10 +654,10 @@ class MainActivity : AppCompatActivity() {
     private fun konfirmasiHapus(model: TranslateRemoteModel) {
         val nama = namaBahasa(model.language)
         AlertDialog.Builder(this)
-            .setTitle("Hapus model $nama?")
-            .setMessage("Model ini akan dihapus dari HP. Kalau dipakai lagi, perlu diunduh ulang dengan internet.")
-            .setPositiveButton("Hapus") { _, _ -> hapusModel(model, nama) }
-            .setNegativeButton("Batal", null)
+            .setTitle(I18n.tr(this, "Hapus model ") + nama + "?")
+            .setMessage(I18n.tr(this, "Model ini akan dihapus dari HP. Kalau dipakai lagi, perlu diunduh ulang dengan internet."))
+            .setPositiveButton(I18n.tr(this, "Hapus")) { _, _ -> hapusModel(model, nama) }
+            .setNegativeButton(I18n.tr(this, "Batal"), null)
             .show()
     }
 
@@ -510,13 +665,13 @@ class MainActivity : AppCompatActivity() {
         RemoteModelManager.getInstance().deleteDownloadedModel(model)
             .addOnSuccessListener {
                 Translator.forgetReady()
-                toast("Model $nama dihapus")
+                toast(I18n.tr(this, "Model ") + nama + I18n.tr(this, " dihapus"))
             }
-            .addOnFailureListener { toast("Gagal menghapus model $nama") }
+            .addOnFailureListener { toast(I18n.tr(this, "Gagal menghapus model ") + nama) }
     }
 
     private fun namaBahasa(kode: String): String =
-        Languages.TARGET.firstOrNull { it.code == kode }?.label ?: kode
+        Languages.TARGET.firstOrNull { it.code == kode }?.label?.let { I18n.tr(this, it) } ?: kode
 
     /** Nomor build aplikasi ini. Saat dibuild di GitHub, nomornya sama dengan run number. */
     @Suppress("DEPRECATION")
@@ -583,16 +738,20 @@ class MainActivity : AppCompatActivity() {
     /** Dialog pembaruan. Pengguna bisa membuka halaman update, atau menunda sampai ada build yang lebih baru. */
     private fun showUpdateDialog(remote: Long, local: Long) {
         AlertDialog.Builder(this)
-            .setTitle("Ada pembaruan")
-            .setMessage("Build terbaru: $remote\nBuild kamu: $local\n\nBuka halaman update untuk mengunduh APK terbaru?")
-            .setPositiveButton("Buka halaman update") { _, _ ->
+            .setTitle(I18n.tr(this, "Ada pembaruan"))
+            .setMessage(
+                I18n.tr(this, "Build terbaru: ") + remote + "\n" +
+                    I18n.tr(this, "Build kamu: ") + local + "\n\n" +
+                    I18n.tr(this, "Buka halaman update untuk mengunduh APK terbaru?")
+            )
+            .setPositiveButton(I18n.tr(this, "Buka halaman update")) { _, _ ->
                 try {
                     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(RELEASE_PAGE)))
                 } catch (e: ActivityNotFoundException) {
                     toast("Tidak ada browser untuk membuka link")
                 }
             }
-            .setNegativeButton("Nanti") { _, _ -> catatTunda(remote) }
+            .setNegativeButton(I18n.tr(this, "Nanti")) { _, _ -> catatTunda(remote) }
             .setOnCancelListener { catatTunda(remote) }
             .show()
     }
@@ -603,6 +762,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun toast(msg: String) {
-        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, I18n.tr(this, msg), Toast.LENGTH_SHORT).show()
     }
 }

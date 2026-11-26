@@ -43,4 +43,4 @@ Catatan: upload lewat browser HP membuat struktur folder hilang. Cara yang lebih
 - Rotasi layar belum ditangani. Kalau layar diputar, perekaman perlu dimulai ulang.
 - Vivo (Funtouch OS) kadang mematikan layanan latar. Matikan pembatasan baterai untuk aplikasi ini dan aktifkan autostart.
 - Di aplikasi yang memblokir perekaman layar (misalnya banking), teks tidak akan terbaca.
-- Teks di layar dikirim ke server Google untuk diterjemahkan. Jangan dipakai saat membuka password atau data rekening.
+- Terjemahan berjalan di HP lewat ML Kit. Tidak perlu API key atau akun. Teks di layar tidak dikirim ke server mana pun. Hanya model bahasa yang diunduh dari server Google, sekali saat pertama kali dipakai.

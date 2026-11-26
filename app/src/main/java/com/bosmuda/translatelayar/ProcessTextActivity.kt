@@ -38,7 +38,7 @@ class ProcessTextActivity : Activity() {
             return
         }
 
-        setTitle("Terjemahan RTTS")
+        setTitle(I18n.tr(this, "Terjemahan RTTS"))
         setContentView(buildLayout(text))
         window.setLayout(
             (resources.displayMetrics.widthPixels * 0.9).roundToInt(),
@@ -65,7 +65,7 @@ class ProcessTextActivity : Activity() {
         })
         content.addView(label("Terjemahan", topDp = 18))
         tvResult = TextView(this).apply {
-            text = "Sedang menerjemahkan..."
+            text = I18n.tr(this@ProcessTextActivity, "Sedang menerjemahkan...")
             textSize = 18f
             setTextColor(Color.parseColor("#111111"))
             setTextIsSelectable(true)
@@ -104,7 +104,7 @@ class ProcessTextActivity : Activity() {
         Thread {
             // Terjemahan butuh background thread, bukan main thread
             val out: String? = try {
-                Translator.translate("", listOf(original), src, tgt).firstOrNull()
+                Translator.translate(listOf(original), src, tgt).firstOrNull()
             } catch (e: Exception) {
                 null
             }
@@ -116,7 +116,7 @@ class ProcessTextActivity : Activity() {
 
     private fun showResult(out: String?) {
         if (out.isNullOrBlank()) {
-            tvResult.text = "Gagal menerjemahkan. Untuk pertama kali, pastikan internet aktif supaya model bahasa bisa diunduh."
+            tvResult.text = I18n.tr(this, "Gagal menerjemahkan. Untuk pertama kali, pastikan internet aktif supaya model bahasa bisa diunduh.")
             return
         }
         translated = out
@@ -134,7 +134,7 @@ class ProcessTextActivity : Activity() {
 
     private fun label(caption: String, topDp: Int = 0): TextView =
         TextView(this).apply {
-            text = caption
+            text = I18n.tr(this@ProcessTextActivity, caption)
             textSize = 13f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.parseColor("#D32F2F"))
@@ -143,7 +143,7 @@ class ProcessTextActivity : Activity() {
 
     private fun pill(caption: String, bg: String, fg: String, onClick: () -> Unit): TextView =
         TextView(this).apply {
-            text = caption
+            text = I18n.tr(this@ProcessTextActivity, caption)
             textSize = 15f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
@@ -160,6 +160,6 @@ class ProcessTextActivity : Activity() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
 
     private fun toast(msg: String) {
-        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, I18n.tr(this, msg), Toast.LENGTH_SHORT).show()
     }
 }
