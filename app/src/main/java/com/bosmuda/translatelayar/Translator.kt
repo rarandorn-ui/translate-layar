@@ -31,6 +31,10 @@ object Translator {
     // Teks yang sudah pernah diterjemahkan, supaya tidak diterjemahkan ulang
     private val memo = ConcurrentHashMap<String, String>()
 
+    // Pasangan bahasa yang sedang diunduh, dan yang modelnya sudah siap
+    private val downloading = ConcurrentHashMap.newKeySet<String>()
+    private val ready = ConcurrentHashMap.newKeySet<String>()
+
     /**
      * Menyiapkan model bahasa lebih dulu (perlu internet sekali), supaya tidak menunggu saat dipakai.
      * Boleh dipanggil dari thread mana pun.
@@ -39,11 +43,7 @@ object Translator {
         val src = TranslateLanguage.fromLanguageTag(source) ?: return
         val tgt = TranslateLanguage.fromLanguageTag(target) ?: return
         if (src == tgt) return
-        awaitOrFail(
-            clientFor(src, tgt).downloadModelIfNeeded(DownloadConditions.Builder().build()),
-            DOWNLOAD_TIMEOUT_S,
-            "Model bahasa belum selesai diunduh. Pastikan internet aktif, lalu coba lagi."
-        )
+        ensureModel(src, tgt, clientFor(src, tgt))
     }
 
     /**
@@ -79,11 +79,7 @@ object Translator {
         val translator = clientFor(src, tgt)
 
         // Model bahasa diunduh sekali (perlu internet), setelah itu bisa offline
-        awaitOrFail(
-            translator.downloadModelIfNeeded(DownloadConditions.Builder().build()),
-            DOWNLOAD_TIMEOUT_S,
-            "Model bahasa belum selesai diunduh. Pastikan internet aktif, lalu coba lagi."
-        )
+        ensureModel(src, tgt, translator)
 
         for (i in misses) {
             val out = awaitOrFail(
@@ -96,6 +92,34 @@ object Translator {
             result[i] = out
         }
         return result.map { it ?: "" }
+    }
+
+    /** Mengunduh model pasangan bahasa kalau belum ada, sambil mencatat statusnya. */
+    private fun ensureModel(src: String, tgt: String, client: com.google.mlkit.nl.translate.Translator) {
+        val key = "$src>$tgt"
+        if (ready.contains(key)) return
+        downloading.add(key)
+        try {
+            awaitOrFail(
+                client.downloadModelIfNeeded(DownloadConditions.Builder().build()),
+                DOWNLOAD_TIMEOUT_S,
+                "Model bahasa belum selesai diunduh. Pastikan internet aktif, lalu coba lagi."
+            )
+            ready.add(key)
+        } finally {
+            downloading.remove(key)
+        }
+    }
+
+    /** Melupakan status model yang sudah siap, misalnya setelah model dihapus. */
+    fun forgetReady() {
+        ready.clear()
+    }
+
+    /** True kalau model pasangan bahasa ini sedang diunduh dan belum siap. */
+    fun isDownloading(source: String, target: String): Boolean {
+        val key = "$source>$target"
+        return downloading.contains(key) && !ready.contains(key)
     }
 
     private fun clientFor(src: String, tgt: String): com.google.mlkit.nl.translate.Translator =

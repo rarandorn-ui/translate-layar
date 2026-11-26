@@ -93,8 +93,6 @@ class TranslateService : Service() {
     private var oneShot = false
     private enum class OneShot { TRANSLATE, COPY, SPEAK }
     private var oneShotMode = OneShot.TRANSLATE
-    private var tts: TextToSpeech? = null
-    private var ttsReady = false
     private val clearOneShot = Runnable { overlay?.setItems(emptyList()) }
 
     private var projection: MediaProjection? = null
@@ -125,7 +123,7 @@ class TranslateService : Service() {
         super.onCreate()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         handler = Handler(Looper.getMainLooper())
-        tts = TextToSpeech(this) { status -> ttsReady = status == TextToSpeech.SUCCESS }
+        Speaker.init(this)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -415,6 +413,15 @@ class TranslateService : Service() {
         tv.invalidate()
     }
 
+    /** Memberi tahu kalau model terjemahan masih diunduh, supaya jelas kenapa belum langsung jalan. */
+    private fun warnIfModelDownloading() {
+        val (src, tgt) = currentLangs()
+        val from = if (src == "auto") "en" else src
+        if (from != tgt && Translator.isDownloading(from, tgt)) {
+            toast("Model terjemahan masih diunduh, tunggu sebentar")
+        }
+    }
+
     private fun toggleTranslate() {
         translateOn = !translateOn
         handler.removeCallbacks(clearOneShot)
@@ -423,6 +430,7 @@ class TranslateService : Service() {
         shownSig = null
         if (translateOn) {
             toast("Terjemahan aktif")
+            warnIfModelDownloading()
             scheduleNext(0L)
         } else {
             handler.removeCallbacks(loopRunnable)
@@ -586,6 +594,7 @@ class TranslateService : Service() {
 
     /** Terjemahan atau salin teks sekali dari layar, lalu berhenti. */
     private fun runOnce() {
+        warnIfModelDownloading()
         if (isBusy()) {
             toast("Tunggu sebentar, lalu coba lagi")
             return
@@ -878,17 +887,8 @@ class TranslateService : Service() {
 
     /** Bacakan teks dengan suara bawaan HP, memakai bahasa [code]. */
     private fun speakAloud(text: String, code: String) {
-        val engine = tts
-        if (engine == null || !ttsReady) {
-            toast("Mesin suara belum siap, coba lagi sebentar")
-            return
-        }
-        val res = engine.setLanguage(ttsLocale(code))
-        if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
-            toast("Suara untuk bahasa ini belum terpasang di HP")
-            return
-        }
-        engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "baca-layar")
+        val problem = Speaker.speak(text, code)
+        if (problem != null) toast(problem)
     }
 
     private fun ttsLocale(code: String): Locale =
@@ -1047,10 +1047,7 @@ class TranslateService : Service() {
         bubbleLp = null
         overlay?.let { runCatching { windowManager.removeView(it) } }
         overlay = null
-        ttsReady = false
-        tts?.stop()
-        tts?.shutdown()
-        tts = null
+        Speaker.stop()
     }
 
     private fun stopEverything() {

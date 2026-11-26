@@ -5,6 +5,10 @@
         android:icon="@android:drawable/ic_menu_view"
         android:title="Beranda" />
     <item
+        android:id="@+id/navTeks"
+        android:icon="@android:drawable/ic_menu_edit"
+        android:title="Teks" />
+    <item
         android:id="@+id/navSettings"
         android:icon="@android:drawable/ic_menu_preferences"
         android:title="Pengaturan" />
