@@ -1,6 +1,7 @@
 package com.bosmuda.translatelayar
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -17,9 +18,13 @@ import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : AppCompatActivity() {
 
@@ -28,6 +33,8 @@ class MainActivity : AppCompatActivity() {
         const val BUBBLE_MAX = 80
         const val TEXT_MIN = 50
         const val TEXT_MAX = 150
+        const val RELEASE_API = "https://api.github.com/repos/rarandorn-ui/translate-layar/releases/latest"
+        const val RELEASE_PAGE = "https://github.com/rarandorn-ui/translate-layar/releases/latest"
     }
 
     private lateinit var spSource: Spinner
@@ -37,6 +44,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sbText: SeekBar
     private lateinit var tvTextVal: TextView
     private lateinit var tvStatus: TextView
+    private lateinit var tvBuild: TextView
 
     // Hasil izin rekam layar (MediaProjection)
     private val projectionLauncher = registerForActivityResult(
@@ -65,6 +73,8 @@ class MainActivity : AppCompatActivity() {
         sbText = findViewById(R.id.sbText)
         tvTextVal = findViewById(R.id.tvTextVal)
         tvStatus = findViewById(R.id.tvStatus)
+        tvBuild = findViewById(R.id.tvBuild)
+        tvBuild.text = "Build terpasang: ${localBuild()}"
 
         spSource.adapter = langAdapter(Languages.SOURCE)
         spTarget.adapter = langAdapter(Languages.TARGET)
@@ -92,13 +102,15 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
-        findViewById<Button>(R.id.btnSupport).setOnClickListener {
+        val openSupport = View.OnClickListener {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://saweria.co/RizkyAhmad9")))
             } catch (e: Exception) {
                 Toast.makeText(this, "Tidak ada browser untuk membuka link", Toast.LENGTH_SHORT).show()
             }
         }
+        findViewById<Button>(R.id.btnSupport).setOnClickListener(openSupport)
+        findViewById<Button>(R.id.btnSupportHome).setOnClickListener(openSupport)
         findViewById<Button>(R.id.btnSave).setOnClickListener {
             saveSettings()
             toast("Pengaturan disimpan")
@@ -112,6 +124,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnStop).setOnClickListener {
             stopService(Intent(this, TranslateService::class.java))
             toast("Layanan dihentikan")
+        }
+        findViewById<Button>(R.id.btnUpdate).setOnClickListener {
+            checkUpdate()
         }
 
         // Android 13 ke atas perlu izin notifikasi untuk layanan latar
@@ -205,6 +220,61 @@ class MainActivity : AppCompatActivity() {
                 Intent(this, TranslateService::class.java).setAction(TranslateService.ACTION_APPLY)
             )
         }
+    }
+
+    /** Nomor build aplikasi ini. Saat dibuild di GitHub, nomornya sama dengan run number. */
+    @Suppress("DEPRECATION")
+    private fun localBuild(): Long {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        return if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+    }
+
+    /** Cek rilis terbaru di GitHub. Hanya membaca data, tidak mengunduh atau memasang apa pun. */
+    private fun checkUpdate() {
+        toast("Mengecek pembaruan...")
+        Thread {
+            try {
+                val conn = URL(RELEASE_API).openConnection() as HttpURLConnection
+                try {
+                    conn.connectTimeout = 10_000
+                    conn.readTimeout = 10_000
+                    conn.setRequestProperty("Accept", "application/vnd.github+json")
+                    conn.setRequestProperty("User-Agent", "RTTS-Android")
+                    if (conn.responseCode != 200) throw IllegalStateException("HTTP ${conn.responseCode}")
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
+                    val tag = JSONObject(body).getString("tag_name")
+                    val remote = Regex("build-(\\d+)").find(tag)?.groupValues?.get(1)?.toLongOrNull()
+                        ?: throw IllegalStateException("Format tag tidak dikenal: $tag")
+                    val local = localBuild()
+                    runOnUiThread {
+                        if (remote > local) {
+                            showUpdateDialog(remote, local)
+                        } else {
+                            toast("Sudah versi terbaru (build $local)")
+                        }
+                    }
+                } finally {
+                    conn.disconnect()
+                }
+            } catch (e: Exception) {
+                runOnUiThread { toast("Gagal cek pembaruan. Pastikan internet aktif") }
+            }
+        }.start()
+    }
+
+    private fun showUpdateDialog(remote: Long, local: Long) {
+        AlertDialog.Builder(this)
+            .setTitle("Ada pembaruan")
+            .setMessage("Build terbaru: $remote\nBuild kamu: $local\n\nBuka halaman rilis untuk mengunduh APK terbaru?")
+            .setPositiveButton("Buka") { _, _ ->
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(RELEASE_PAGE)))
+                } catch (e: ActivityNotFoundException) {
+                    toast("Tidak ada browser untuk membuka link")
+                }
+            }
+            .setNegativeButton("Nanti", null)
+            .show()
     }
 
     private fun toast(msg: String) {

@@ -29,7 +29,9 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.CheckBox
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import com.google.mlkit.vision.common.InputImage
@@ -84,6 +86,7 @@ class TranslateService : Service() {
     private var bubbleSizePx = 0
     private var textPct = 100
     private var menuView: LinearLayout? = null
+    private var picker: View? = null
     private var oneShot = false
     private enum class OneShot { TRANSLATE, COPY, SPEAK }
     private var oneShotMode = OneShot.TRANSLATE
@@ -458,34 +461,11 @@ class TranslateService : Service() {
             finishCycle()
             return
         }
+        translateLines(visibleLines(result), sig)
+    }
 
-        // Abaikan teks yang tertutup bulatan
-        // Posisi bulatan dari layar (sesuai posisi yang benar-benar tampil)
-        val bubbleRect = bubble?.let { view ->
-            val loc = IntArray(2)
-            view.getLocationOnScreen(loc)
-            RectF(
-                loc[0].toFloat(),
-                loc[1].toFloat(),
-                (loc[0] + bubbleSizePx).toFloat(),
-                (loc[1] + bubbleSizePx).toFloat()
-            )
-        } ?: RectF()
-
-        val lines = ArrayList<Pair<RectF, String>>()
-        for (block in result.textBlocks) {
-            for (line in block.lines) {
-                val box = line.boundingBox ?: continue
-                // Abaikan teks di bilah status (jam, sinyal, baterai)
-                if (box.bottom <= statusBarPx()) continue
-                val rect = RectF(box)
-                if (RectF.intersects(rect, bubbleRect)) continue
-                val text = line.text.trim()
-                if (text.length < 2) continue
-                lines.add(rect to text)
-            }
-        }
-
+    /** Terjemahkan baris yang dipilih, lalu tampilkan hasilnya di layar. */
+    private fun translateLines(lines: List<Pair<RectF, String>>, sig: IntArray) {
         if (lines.isEmpty()) {
             shownSig = sig
             finishCycle()
@@ -580,8 +560,8 @@ class TranslateService : Service() {
                         copyText(result)
                         finishCycle()
                     }
-                    OneShot.SPEAK -> readAloud(result)
-                    OneShot.TRANSLATE -> onOcrDone(result, sig)
+                    OneShot.SPEAK -> pickSpeak(result)
+                    OneShot.TRANSLATE -> pickTranslate(result, sig)
                 }
             }
             .addOnFailureListener {
@@ -618,24 +598,193 @@ class TranslateService : Service() {
         return lines
     }
 
+    /** Ambil baris teks yang terlihat, lalu tampilkan daftar pilihan untuk disalin. */
     private fun copyText(result: Text) {
-        val text = visibleLines(result).joinToString("\n") { it.second }.trim()
-        if (text.isEmpty()) {
+        val lines = visibleLines(result).sortedWith(compareBy({ it.first.top }, { it.first.left }))
+        if (lines.isEmpty()) {
             toast("Tidak ada teks di layar")
             return
         }
-        // Clipboard hanya bisa diisi oleh aplikasi yang sedang di depan,
-        // jadi disalin lewat activity kecil yang langsung tampil lalu tertutup
+        val texts = lines.map { it.second }
+        showPicker(texts, "Pilih baris yang mau disalin", "Salin semua", "Salin pilihan") { chosen ->
+            sendToClipboard(chosen.joinToString("\n") { texts[it] })
+        }
+    }
+
+    /** Terjemahan sekali: pilih baris yang mau diterjemahkan, atau semuanya. */
+    private fun pickTranslate(result: Text, sig: IntArray) {
+        val lines = visibleLines(result).sortedWith(compareBy({ it.first.top }, { it.first.left }))
+        if (lines.isEmpty()) {
+            toast("Tidak ada teks di layar")
+            finishCycle()
+            return
+        }
+        showPicker(
+            lines.map { it.second },
+            "Pilih teks yang mau diterjemahkan",
+            "Terjemahkan semua",
+            "Terjemahkan pilihan",
+            onCancel = { finishCycle() }
+        ) { chosen -> translateLines(chosen.map { lines[it] }, sig) }
+    }
+
+    /** Bacakan sekali: pilih baris yang mau dibacakan, atau semuanya. */
+    private fun pickSpeak(result: Text) {
+        val lines = visibleLines(result).sortedWith(compareBy({ it.first.top }, { it.first.left }))
+        if (lines.isEmpty()) {
+            toast("Tidak ada teks di layar")
+            finishCycle()
+            return
+        }
+        showPicker(
+            lines.map { it.second },
+            "Pilih teks yang mau dibacakan",
+            "Bacakan semua",
+            "Bacakan pilihan",
+            onCancel = { finishCycle() }
+        ) { chosen -> readAloud(chosen.map { lines[it] }) }
+    }
+
+    /** Daftar baris dengan kotak centang: tombol "semua", dan tombol "pilihan" (hanya yang dicentang). */
+    private fun showPicker(
+        items: List<String>,
+        title: String,
+        allLabel: String,
+        pickLabel: String,
+        onCancel: () -> Unit = {},
+        onDone: (List<Int>) -> Unit
+    ) {
+        closePicker()
+        val checks = ArrayList<CheckBox>()
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        for (item in items) {
+            val cb = CheckBox(this).apply {
+                text = item
+                textSize = 15f
+                setTextColor(Color.parseColor("#111111"))
+            }
+            checks.add(cb)
+            list.addView(cb)
+        }
+        val scroll = ScrollView(this).apply { addView(list) }
+
+        val titleView = TextView(this).apply {
+            text = title
+            textSize = 16f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#D32F2F"))
+        }
+        val allBtn = pillButton(allLabel, Color.parseColor("#FFCDD2"), Color.parseColor("#B71C1C")) {
+            closePicker()
+            onDone(items.indices.toList())
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
+        }
+        val buttons = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+            addView(pillButton("Batal", Color.parseColor("#E0E0E0"), Color.parseColor("#111111")) {
+                closePicker()
+                onCancel()
+            })
+            addView(pillButton(pickLabel, Color.parseColor("#D32F2F"), Color.WHITE) {
+                val chosen = checks.indices.filter { checks[it].isChecked }
+                if (chosen.isEmpty()) {
+                    toast("Belum ada baris yang dipilih")
+                    return@pillButton
+                }
+                closePicker()
+                onDone(chosen)
+            })
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(16).toFloat()
+                setColor(Color.WHITE)
+            }
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            addView(titleView)
+            addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(allBtn)
+            addView(buttons, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) })
+        }
+
+        // Tanpa FLAG_NOT_FOCUSABLE supaya kotak centang bisa disentuh,
+        // dan FLAG_NOT_TOUCH_MODAL supaya sentuhan di luar kotak tetap diteruskan ke aplikasi di bawahnya
+        val pickerLp = WindowManager.LayoutParams(
+            minOf(screenW - dp(32), dp(360)),
+            (screenH * 0.6f).toInt(),
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply { gravity = Gravity.CENTER }
+        windowManager.addView(panel, pickerLp)
+        picker = panel
+    }
+
+    private fun closePicker() {
+        picker?.let { runCatching { windowManager.removeView(it) } }
+        picker = null
+    }
+
+    private fun pillButton(label: String, bg: Int, fg: Int, onClick: () -> Unit): TextView =
+        TextView(this).apply {
+            text = label
+            textSize = 15f
+            setTextColor(fg)
+            gravity = Gravity.CENTER
+            setPadding(dp(18), dp(10), dp(18), dp(10))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(20).toFloat()
+                setColor(bg)
+            }
+            setOnClickListener { onClick() }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { marginStart = dp(8) }
+        }
+
+    /** Terjemahkan baris yang dipilih di latar belakang, lalu salin hasil terjemahannya. */
+    private fun copyTranslated(lines: List<String>) {
+        val (src, tgt) = currentLangs()
+        val sourceParam = if (src == "auto") null else src
+        toast("Menerjemahkan...")
+        worker.execute {
+            val out: List<String> = try {
+                Translator.translate("", lines, sourceParam, tgt)
+            } catch (e: Exception) {
+                handler.post { toast("Gagal menerjemahkan: ${e.message?.take(80)}") }
+                return@execute
+            }
+            handler.post { sendToClipboard(out.joinToString("\n")) }
+        }
+    }
+
+    /** Salin teks ke clipboard lewat activity kecil yang langsung tampil lalu tertutup. */
+    private fun sendToClipboard(text: String) {
+        val clean = text.trim()
+        if (clean.isEmpty()) {
+            toast("Tidak ada teks yang dipilih")
+            return
+        }
+        // Clipboard hanya bisa diisi oleh aplikasi yang sedang di depan
         startActivity(
             Intent(this, CopyTextActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                .putExtra(CopyTextActivity.EXTRA_TEXT, text)
+                .putExtra(CopyTextActivity.EXTRA_TEXT, clean)
         )
     }
 
     /** Terjemahkan teks yang terlihat di layar, lalu bacakan hasilnya dengan suara. */
-    private fun readAloud(result: Text) {
-        val lines = visibleLines(result)
+    private fun readAloud(lines: List<Pair<RectF, String>>) {
         if (lines.isEmpty()) {
             toast("Tidak ada teks di layar")
             finishCycle()
@@ -812,6 +961,7 @@ class TranslateService : Service() {
     private fun teardown() {
         isRunning = false
         closeMenu()
+        closePicker()
         oneShot = false
         translateOn = false
         busy = false

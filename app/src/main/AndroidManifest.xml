@@ -32,6 +32,22 @@
             android:noHistory="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
+        <!-- Muncul di menu "Pilih teks" aplikasi lain -->
+        <activity
+            android:name=".ProcessTextActivity"
+            android:exported="true"
+            android:label="Terjemahkan dengan RTTS"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:noHistory="true"
+            android:theme="@android:style/Theme.DeviceDefault.Light.Dialog">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".TranslateService"
             android:exported="false"

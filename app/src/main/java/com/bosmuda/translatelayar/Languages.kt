@@ -7,9 +7,9 @@ data class Lang(val label: String, val code: String, val script: Script = Script
 
 object Languages {
 
-    /** Bahasa asal. "auto" memakai pengenal huruf Latin. */
+    /** Bahasa asal. "auto" memakai pengenal Jepang, yang juga bisa membaca huruf Latin. */
     val SOURCE = listOf(
-        Lang("Otomatis (huruf Latin)", "auto"),
+        Lang("Otomatis (Latin dan Jepang)", "auto", Script.JAPANESE),
         Lang("Inggris", "en"),
         Lang("Indonesia", "id"),
         Lang("Prancis", "fr"),

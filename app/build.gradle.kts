@@ -11,7 +11,9 @@ android {
         applicationId = "com.bosmuda.translatelayar"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
+        // Nomor build dari GitHub Actions (GITHUB_RUN_NUMBER), dipakai untuk cek pembaruan.
+        // Di luar GitHub tetap 1.
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
         versionName = "1.0"
     }
 
