@@ -23,6 +23,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import android.util.DisplayMetrics
 import android.view.Gravity
@@ -71,6 +72,8 @@ class TranslateService : Service() {
         private const val NOTIF_ID = 1
         private const val CAPTURE_INTERVAL_MS = 1500L
         private const val HIDE_DELAY_MS = 150L
+        // Batas waktu satu putaran. Lewat dari ini, putaran dianggap macet dan dilepas
+        private const val STUCK_MS = 25_000L
         private const val COLOR_OFF = "#212121"
         private const val COLOR_ON = "#D32F2F"
     }
@@ -107,6 +110,9 @@ class TranslateService : Service() {
 
     private var translateOn = false
     private var busy = false
+    private var busySince = 0L
+    private var emptyFrames = 0
+    private var noFrameHinted = false
 
     // Sidik jari layar. ocrSig = layar yang sedang diterjemahkan,
     // shownSig = layar yang hasil terjemahannya sedang tampil.
@@ -266,6 +272,8 @@ class TranslateService : Service() {
 
         val (src, _) = currentLangs()
         recognizer = buildRecognizer(Languages.byCode(src, Languages.SOURCE).script)
+        warmUpRecognizer()
+        prepareModels()
 
         addViews()
         isRunning = true
@@ -277,6 +285,25 @@ class TranslateService : Service() {
         Script.CHINESE -> TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
         Script.JAPANESE -> TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
         Script.KOREAN -> TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
+    }
+
+    /**
+     * Menyiapkan model terjemahan di latar belakang saat layanan mulai,
+     * supaya tidak perlu menunggu saat teks pertama kali diterjemahkan.
+     * Kalau bahasa asal Otomatis, Inggris dipakai sebagai perkiraan karena paling umum.
+     */
+    private fun prepareModels() {
+        val (src, tgt) = currentLangs()
+        val from = if (src == "auto") "en" else src
+        if (from == tgt) return
+        Thread {
+            try {
+                Translator.prepare(from, tgt)
+                handler.post { if (isRunning) toast("Model terjemahan siap") }
+            } catch (e: Exception) {
+                handler.post { if (isRunning) toast("Model terjemahan belum siap. Pastikan internet aktif") }
+            }
+        }.start()
     }
 
     // ---------- Bulatan & overlay ----------
@@ -411,24 +438,63 @@ class TranslateService : Service() {
         handler.postDelayed(loopRunnable, delayMs)
     }
 
-    private fun runCycle() {
-        if (!translateOn || busy) return
+    /** Menandai satu putaran kerja mulai, supaya bisa dideteksi kalau macet. */
+    private fun beginWork() {
         busy = true
+        busySince = SystemClock.uptimeMillis()
+    }
+
+    /** Sibuk hanya kalau putaran sebelumnya belum selesai dalam batas waktu. Lewat dari itu, dianggap macet dan dilepas. */
+    private fun isBusy(): Boolean {
+        if (!busy) return false
+        if (SystemClock.uptimeMillis() - busySince < STUCK_MS) return true
+        busy = false
+        oneShot = false
+        return false
+    }
+
+    private fun runCycle() {
+        if (!translateOn) return
+        if (isBusy()) {
+            // Putaran sebelumnya belum selesai, cek lagi sebentar lagi
+            scheduleNext(CAPTURE_INTERVAL_MS)
+            return
+        }
+        beginWork()
         // Sembunyikan hasil terjemahan sebentar agar tidak ikut terekam
         setOverlayHidden(true)
         handler.postDelayed({ captureAndRecognize() }, HIDE_DELAY_MS)
     }
 
+    /** Memuat model OCR lebih awal dengan membaca gambar kosong, supaya pembacaan pertama tidak lambat. */
+    private fun warmUpRecognizer() {
+        val rec = recognizer ?: return
+        val blank = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        rec.process(InputImage.fromBitmap(blank, 0))
+            .addOnCompleteListener { blank.recycle() }
+    }
+
+    /** Mencatat putaran tanpa gambar sama sekali. Kalau terlalu lama, beri tahu pengguna cara memancing gambar. */
+    private fun noFrame() {
+        emptyFrames++
+        if (lastFrame == null && emptyFrames >= 6 && !noFrameHinted) {
+            noFrameHinted = true
+            toast("Belum ada gambar dari layar. Coba gulir layar sedikit, RTTS akan membacanya")
+        }
+    }
+
     private fun captureAndRecognize() {
-        val bmp = acquireBitmap()
+        // Kalau layar diam, tidak ada gambar baru. Pakai gambar terakhir supaya tetap bisa dibaca
+        val bmp = acquireBitmap() ?: lastFrame
         setOverlayHidden(false)
 
         val rec = recognizer
         if (bmp == null || rec == null) {
-            // Layar belum berubah (tidak ada frame baru), jadi tidak perlu OCR ulang
+            noFrame()
             finishCycle()
             return
         }
+        emptyFrames = 0
 
         val sig = signature(bmp)
         if (sameScreen(sig, shownSig)) {
@@ -520,12 +586,12 @@ class TranslateService : Service() {
 
     /** Terjemahan atau salin teks sekali dari layar, lalu berhenti. */
     private fun runOnce() {
-        if (busy) {
+        if (isBusy()) {
             toast("Tunggu sebentar, lalu coba lagi")
             return
         }
         if (recognizer == null || imageReader == null) return
-        busy = true
+        beginWork()
         oneShot = true
         handler.removeCallbacks(clearOneShot)
         overlay?.setItems(emptyList())
@@ -541,7 +607,7 @@ class TranslateService : Service() {
                 handler.postDelayed({ captureOnce(tries + 1) }, 200L)
             } else {
                 setOverlayHidden(false)
-                toast("Gagal mengambil layar")
+                toast("Layar belum terbaca. Coba gulir layar sedikit, lalu ulangi")
                 finishCycle()
             }
             return

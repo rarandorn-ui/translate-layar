@@ -1,11 +1,15 @@
 package com.bosmuda.translatelayar
 
+import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.nl.languageid.LanguageIdentification
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
  * Terjemahan di HP lewat ML Kit (gratis, tanpa API key).
@@ -16,10 +20,31 @@ object Translator {
 
     private const val MEMO_LIMIT = 2000
 
-    private val clients = HashMap<String, com.google.mlkit.nl.translate.Translator>()
+    // Batas waktu supaya satu proses yang macet tidak menahan terjemahan berikutnya
+    private const val DOWNLOAD_TIMEOUT_S = 120L
+    private const val TRANSLATE_TIMEOUT_S = 30L
+    private const val DETECT_TIMEOUT_S = 15L
+
+    // Dipakai dari beberapa thread (layanan, menu pilih teks, dan persiapan model)
+    private val clients = ConcurrentHashMap<String, com.google.mlkit.nl.translate.Translator>()
 
     // Teks yang sudah pernah diterjemahkan, supaya tidak diterjemahkan ulang
-    private val memo = HashMap<String, String>()
+    private val memo = ConcurrentHashMap<String, String>()
+
+    /**
+     * Menyiapkan model bahasa lebih dulu (perlu internet sekali), supaya tidak menunggu saat dipakai.
+     * Boleh dipanggil dari thread mana pun.
+     */
+    fun prepare(source: String, target: String) {
+        val src = TranslateLanguage.fromLanguageTag(source) ?: return
+        val tgt = TranslateLanguage.fromLanguageTag(target) ?: return
+        if (src == tgt) return
+        awaitOrFail(
+            clientFor(src, tgt).downloadModelIfNeeded(DownloadConditions.Builder().build()),
+            DOWNLOAD_TIMEOUT_S,
+            "Model bahasa belum selesai diunduh. Pastikan internet aktif, lalu coba lagi."
+        )
+    }
 
     /**
      * @param apiKey tidak dipakai lagi, hanya dibiarkan agar pemanggil tidak perlu diubah
@@ -51,7 +76,30 @@ object Translator {
         }
         if (misses.isEmpty()) return result.map { it ?: "" }
 
-        val translator = clients.getOrPut(pair) {
+        val translator = clientFor(src, tgt)
+
+        // Model bahasa diunduh sekali (perlu internet), setelah itu bisa offline
+        awaitOrFail(
+            translator.downloadModelIfNeeded(DownloadConditions.Builder().build()),
+            DOWNLOAD_TIMEOUT_S,
+            "Model bahasa belum selesai diunduh. Pastikan internet aktif, lalu coba lagi."
+        )
+
+        for (i in misses) {
+            val out = awaitOrFail(
+                translator.translate(texts[i]),
+                TRANSLATE_TIMEOUT_S,
+                "Terjemahan terlalu lama. Coba lagi sebentar."
+            )
+            if (memo.size >= MEMO_LIMIT) memo.clear()
+            memo[pair + "\u0001" + texts[i]] = out
+            result[i] = out
+        }
+        return result.map { it ?: "" }
+    }
+
+    private fun clientFor(src: String, tgt: String): com.google.mlkit.nl.translate.Translator =
+        clients.getOrPut("$src>$tgt") {
             Translation.getClient(
                 TranslatorOptions.Builder()
                     .setSourceLanguage(src)
@@ -60,23 +108,19 @@ object Translator {
             )
         }
 
-        // Model bahasa diunduh sekali (perlu internet), setelah itu bisa offline
-        Tasks.await(translator.downloadModelIfNeeded(DownloadConditions.Builder().build()))
-
-        for (i in misses) {
-            val out = Tasks.await(translator.translate(texts[i]))
-            if (memo.size >= MEMO_LIMIT) memo.clear()
-            memo[pair + "\u0001" + texts[i]] = out
-            result[i] = out
+    /** Menunggu hasil dengan batas waktu. Kalau lewat, dilempar pesan yang bisa dibaca pengguna. */
+    private fun <T> awaitOrFail(task: Task<T>, timeoutS: Long, message: String): T =
+        try {
+            Tasks.await(task, timeoutS, TimeUnit.SECONDS)
+        } catch (e: TimeoutException) {
+            throw IllegalStateException(message, e)
         }
-        return result.map { it ?: "" }
-    }
 
     /** Menebak bahasa dari teks. Kalau tidak yakin, dianggap bahasa Inggris. */
     private fun detectLanguage(text: String): String {
         val identifier = LanguageIdentification.getClient()
         try {
-            val code = Tasks.await(identifier.identifyLanguage(text))
+            val code = awaitOrFail(identifier.identifyLanguage(text), DETECT_TIMEOUT_S, "Deteksi bahasa terlalu lama.")
             return if (code == "und") "en" else code
         } finally {
             identifier.close()

@@ -46,6 +46,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvStatus: TextView
     private lateinit var tvBuild: TextView
 
+    // Status model terjemahan, ditampilkan di Beranda
+    private var modelStatus = "Model terjemahan: belum disiapkan"
+
     // Hasil izin rekam layar (MediaProjection)
     private val projectionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -129,6 +132,12 @@ class MainActivity : AppCompatActivity() {
             checkUpdate()
         }
 
+        // Siapkan model terjemahan begitu aplikasi dibuka, supaya bulatan siap dipakai
+        prepareModels()
+
+        // Cek pembaruan otomatis saat aplikasi pertama dibuka
+        if (savedInstanceState == null) autoCheckUpdate()
+
         // Android 13 ke atas perlu izin notifikasi untuk layanan latar
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
@@ -140,9 +149,15 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        refreshStatus()
+    }
+
+    private fun refreshStatus() {
         val overlayOk = Settings.canDrawOverlays(this)
         tvStatus.text = buildString {
             appendLine("Izin tampil di atas aplikasi lain: ${if (overlayOk) "sudah" else "belum"}")
+            appendLine(modelStatus)
+            appendLine("Izin rekam layar diminta setiap kali layanan dimulai. Ini aturan Android.")
             appendLine("Kalau layanan sedang jalan, ukuran langsung berubah saat Simpan pengaturan.")
         }
     }
@@ -214,12 +229,51 @@ class MainActivity : AppCompatActivity() {
             .putInt("bubble_dp", sbBubble.progress + BUBBLE_MIN)
             .putInt("text_pct", sbText.progress + TEXT_MIN)
             .apply()
+        // Bahasa bisa berganti, jadi model untuk pasangan baru perlu disiapkan
+        prepareModels()
         // Kalau layanan sedang jalan, terapkan ukuran baru sekarang juga
         if (TranslateService.isRunning) {
             startService(
                 Intent(this, TranslateService::class.java).setAction(TranslateService.ACTION_APPLY)
             )
         }
+    }
+
+    /**
+     * Menyiapkan model terjemahan di latar belakang. Dipanggil saat aplikasi dibuka
+     * dan saat bahasa diganti, supaya saat bulatan dinyalakan tidak perlu menunggu.
+     */
+    private fun prepareModels() {
+        val p = prefs()
+        val src = p.getString("source", "auto") ?: "auto"
+        val tgt = p.getString("target", "id") ?: "id"
+        // Otomatis: Inggris dipakai sebagai perkiraan paling umum
+        val from = if (src == "auto") "en" else src
+        if (from == tgt) {
+            modelStatus = "Model terjemahan: siap"
+            refreshStatus()
+            return
+        }
+        modelStatus = "Model terjemahan: sedang disiapkan, perlu internet untuk pertama kali"
+        refreshStatus()
+        Thread {
+            val ok = try {
+                Translator.prepare(from, tgt)
+                true
+            } catch (e: Exception) {
+                false
+            }
+            runOnUiThread {
+                if (!isDestroyed) {
+                    modelStatus = if (ok) {
+                        "Model terjemahan: siap"
+                    } else {
+                        "Model terjemahan: belum siap. Pastikan internet aktif, lalu buka aplikasi lagi"
+                    }
+                    refreshStatus()
+                }
+            }
+        }.start()
     }
 
     /** Nomor build aplikasi ini. Saat dibuild di GitHub, nomornya sama dengan run number. */
@@ -229,32 +283,36 @@ class MainActivity : AppCompatActivity() {
         return if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
     }
 
-    /** Cek rilis terbaru di GitHub. Hanya membaca data, tidak mengunduh atau memasang apa pun. */
+    /** Mengambil nomor build terbaru dari GitHub. Harus dipanggil dari background thread. */
+    private fun fetchLatestBuild(): Long {
+        val conn = URL(RELEASE_API).openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 10_000
+            conn.readTimeout = 10_000
+            conn.setRequestProperty("Accept", "application/vnd.github+json")
+            conn.setRequestProperty("User-Agent", "RTTS-Android")
+            if (conn.responseCode != 200) throw IllegalStateException("HTTP ${conn.responseCode}")
+            val body = conn.inputStream.bufferedReader().use { it.readText() }
+            val tag = JSONObject(body).getString("tag_name")
+            return Regex("build-(\\d+)").find(tag)?.groupValues?.get(1)?.toLongOrNull()
+                ?: throw IllegalStateException("Format tag tidak dikenal: $tag")
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    /** Cek manual lewat tombol. Selalu memberi tahu hasilnya. */
     private fun checkUpdate() {
         toast("Mengecek pembaruan...")
         Thread {
             try {
-                val conn = URL(RELEASE_API).openConnection() as HttpURLConnection
-                try {
-                    conn.connectTimeout = 10_000
-                    conn.readTimeout = 10_000
-                    conn.setRequestProperty("Accept", "application/vnd.github+json")
-                    conn.setRequestProperty("User-Agent", "RTTS-Android")
-                    if (conn.responseCode != 200) throw IllegalStateException("HTTP ${conn.responseCode}")
-                    val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    val tag = JSONObject(body).getString("tag_name")
-                    val remote = Regex("build-(\\d+)").find(tag)?.groupValues?.get(1)?.toLongOrNull()
-                        ?: throw IllegalStateException("Format tag tidak dikenal: $tag")
-                    val local = localBuild()
-                    runOnUiThread {
-                        if (remote > local) {
-                            showUpdateDialog(remote, local)
-                        } else {
-                            toast("Sudah versi terbaru (build $local)")
-                        }
+                val remote = fetchLatestBuild()
+                val local = localBuild()
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed) {
+                        if (remote > local) showUpdateDialog(remote, local)
+                        else toast("Sudah versi terbaru (build $local)")
                     }
-                } finally {
-                    conn.disconnect()
                 }
             } catch (e: Exception) {
                 runOnUiThread { toast("Gagal cek pembaruan. Pastikan internet aktif") }
@@ -262,19 +320,44 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
+    /** Cek otomatis saat aplikasi dibuka. Diam saja kalau gagal atau tidak ada yang baru. */
+    private fun autoCheckUpdate() {
+        Thread {
+            try {
+                val remote = fetchLatestBuild()
+                val local = localBuild()
+                val dismissed = prefs().getLong("dismissed_build", 0L)
+                if (remote > local && remote > dismissed) {
+                    runOnUiThread {
+                        if (!isFinishing && !isDestroyed) showUpdateDialog(remote, local)
+                    }
+                }
+            } catch (e: Exception) {
+                // Gagal cek otomatis tidak perlu mengganggu pengguna
+            }
+        }.start()
+    }
+
+    /** Dialog pembaruan. Pengguna bisa membuka halaman update, atau menunda sampai ada build yang lebih baru. */
     private fun showUpdateDialog(remote: Long, local: Long) {
         AlertDialog.Builder(this)
             .setTitle("Ada pembaruan")
-            .setMessage("Build terbaru: $remote\nBuild kamu: $local\n\nBuka halaman rilis untuk mengunduh APK terbaru?")
-            .setPositiveButton("Buka") { _, _ ->
+            .setMessage("Build terbaru: $remote\nBuild kamu: $local\n\nBuka halaman update untuk mengunduh APK terbaru?")
+            .setPositiveButton("Buka halaman update") { _, _ ->
                 try {
                     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(RELEASE_PAGE)))
                 } catch (e: ActivityNotFoundException) {
                     toast("Tidak ada browser untuk membuka link")
                 }
             }
-            .setNegativeButton("Nanti", null)
+            .setNegativeButton("Nanti") { _, _ -> catatTunda(remote) }
+            .setOnCancelListener { catatTunda(remote) }
             .show()
+    }
+
+    /** Mencatat build yang ditunda, supaya tidak ditanyakan lagi sampai ada build yang lebih baru. */
+    private fun catatTunda(build: Long) {
+        prefs().edit().putLong("dismissed_build", build).apply()
     }
 
     private fun toast(msg: String) {
