@@ -97,8 +97,8 @@ class OverlayView(context: Context) : View(context) {
     ): RectF {
         val rect = item.rect
         val h = rect.height().coerceAtLeast(MIN_BOX_PX)
-        val padX = h * 0.12f
-        val padY = h * 0.18f
+        val padX = h * 0.15f
+        val padY = h * 0.22f
 
         // Kotak boleh sedikit melebar, supaya terjemahan yang lebih panjang bisa dibungkus dengan lebih nyaman
         val left = (rect.left - padX).coerceAtLeast(minLeft)

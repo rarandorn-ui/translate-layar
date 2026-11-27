@@ -201,16 +201,9 @@ class MainActivity : AppCompatActivity() {
         spTarget.onItemSelectedListener = pilihBahasa
         spUi.onItemSelectedListener = pilihBahasa
 
-        // Navigasi bawah: Beranda dan Pengaturan
-        val pageHome = findViewById<View>(R.id.pageHome)
-        val pageSettings = findViewById<View>(R.id.pageSettings)
-        val pageTeks = findViewById<View>(R.id.pageTeks)
-        val pagePercakapan = findViewById<View>(R.id.pagePercakapan)
+        // Navigasi bawah: Beranda, Teks, Percakapan, dan Pengaturan
         findViewById<BottomNavigationView>(R.id.bottomNav).setOnItemSelectedListener { item ->
-            pageHome.visibility = if (item.itemId == R.id.navHome) View.VISIBLE else View.GONE
-            pageTeks.visibility = if (item.itemId == R.id.navTeks) View.VISIBLE else View.GONE
-            pagePercakapan.visibility = if (item.itemId == R.id.navPercakapan) View.VISIBLE else View.GONE
-            pageSettings.visibility = if (item.itemId == R.id.navSettings) View.VISIBLE else View.GONE
+            tampilkanHalaman(item.itemId)
             true
         }
 
@@ -269,6 +262,17 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         refreshStatus()
         perbaruiTombolMulai()
+        // Setelah layar dibuat ulang (misalnya habis simpan bahasa), menu bawah tetap di tab yang dipilih
+        // tapi halamannya kembali ke Beranda. Jadi halaman disamakan dengan menu yang aktif.
+        tampilkanHalaman(findViewById<BottomNavigationView>(R.id.bottomNav).selectedItemId)
+    }
+
+    /** Menampilkan satu halaman sesuai menu bawah, dan menyembunyikan halaman yang lain. */
+    private fun tampilkanHalaman(menuId: Int) {
+        findViewById<View>(R.id.pageHome).visibility = if (menuId == R.id.navHome) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.pageTeks).visibility = if (menuId == R.id.navTeks) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.pagePercakapan).visibility = if (menuId == R.id.navPercakapan) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.pageSettings).visibility = if (menuId == R.id.navSettings) View.VISIBLE else View.GONE
     }
 
     /** Mengatur tombol btnStart sesuai keadaan layanan: Mulai (merah) atau Hentikan layanan (abu-abu). */

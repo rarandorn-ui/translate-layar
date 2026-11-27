@@ -961,18 +961,16 @@ class TranslateService : Service() {
             val right = rect.right.toInt()
             val top = rect.top.toInt()
             val bottom = rect.bottom.toInt()
-            var sumR = 0L
-            var sumG = 0L
-            var sumB = 0L
-            var count = 0
+            val merah = ArrayList<Int>()
+            val hijau = ArrayList<Int>()
+            val biru = ArrayList<Int>()
             // Titik contoh di atas, bawah, kiri, dan kanan baris, sedikit di luar teksnya
             fun add(x: Int, y: Int) {
                 if (x < 0 || y < 0 || x >= shot.width || y >= shot.height) return
                 val c = shot.getPixel(x, y)
-                sumR += Color.red(c)
-                sumG += Color.green(c)
-                sumB += Color.blue(c)
-                count++
+                merah.add(Color.red(c))
+                hijau.add(Color.green(c))
+                biru.add(Color.blue(c))
             }
             val stepX = maxOf(1, (right - left) / 6)
             val stepY = maxOf(1, (bottom - top) / 4)
@@ -984,10 +982,15 @@ class TranslateService : Service() {
                 add(left - 3, y)
                 add(right + 3, y)
             }
-            if (count == 0) return fallback
-            val r = (sumR / count).toInt()
-            val g = (sumG / count).toInt()
-            val b = (sumB / count).toInt()
+            if (merah.isEmpty()) return fallback
+            // Median, bukan rata-rata: piksel tulisan atau ikon di tepi baris tidak ikut menggelapkan warna kotak
+            merah.sort()
+            hijau.sort()
+            biru.sort()
+            val tengah = merah.size / 2
+            val r = merah[tengah]
+            val g = hijau[tengah]
+            val b = biru[tengah]
             val terang = 0.299 * r + 0.587 * g + 0.114 * b > 140
             Pair(Color.rgb(r, g, b), if (terang) Color.BLACK else Color.WHITE)
         } catch (e: Exception) {
