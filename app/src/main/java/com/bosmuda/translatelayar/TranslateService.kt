@@ -87,6 +87,7 @@ class TranslateService : Service() {
     private var screenW = 0
     private var screenH = 0
     private var bubbleSizePx = 0
+    private var textPct = 100
     private var menuView: LinearLayout? = null
     private var picker: View? = null
     // Salin area: layar seleksi yang sedang tampil, dan salinan frame untuk dipotong
@@ -217,15 +218,17 @@ class TranslateService : Service() {
         readSizes()
     }
 
-    /** Baca ukuran bulatan dari pengaturan (dp). */
+    /** Baca ukuran dari pengaturan: ukuran bulatan (dp) dan ukuran tulisan (%). */
     private fun readSizes() {
         val p = prefs()
         bubbleSizePx = (p.getInt("bubble_dp", 56) * density).roundToInt()
+        textPct = p.getInt("text_pct", 100)
     }
 
-    /** Terapkan ukuran baru ke bulatan yang sedang tampil. */
+    /** Terapkan ukuran baru ke bulatan dan overlay yang sedang tampil. */
     private fun applySizes() {
         readSizes()
+        overlay?.textScale = textPct / 100f
         val tv = bubble ?: return
         val lp = bubbleLp ?: return
         lp.width = bubbleSizePx
@@ -324,6 +327,7 @@ class TranslateService : Service() {
                 PixelFormat.TRANSLUCENT
             )
         )
+        ov.textScale = textPct / 100f
         overlay = ov
 
         // Bulatan: bisa digeser, tap untuk nyala/mati

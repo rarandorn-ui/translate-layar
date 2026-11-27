@@ -15,6 +15,16 @@ import android.provider.Settings
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.EditText
+import android.graphics.Color
+import android.view.Gravity
+import android.view.ViewGroup
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import com.google.android.gms.tasks.Tasks
+import com.google.android.material.button.MaterialButton
+import com.google.mlkit.common.model.DownloadConditions
+import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 import android.speech.RecognizerIntent
 import com.google.mlkit.common.model.RemoteModelManager
 import com.google.mlkit.nl.translate.TranslateRemoteModel
@@ -44,6 +54,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val BUBBLE_MIN = 36
         const val BUBBLE_MAX = 80
+        const val TEXT_MIN = 50
+        const val TEXT_MAX = 150
         const val TTS_MIN = 50
         const val TTS_MAX = 200
         const val RELEASE_API = "https://api.github.com/repos/rarandorn-ui/translate-layar/releases/latest"
@@ -54,6 +66,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var spTarget: Spinner
     private lateinit var sbBubble: SeekBar
     private lateinit var tvBubbleVal: TextView
+    private lateinit var sbText: SeekBar
+    private lateinit var tvTextVal: TextView
     private lateinit var tvStatus: TextView
     private lateinit var tvBuild: TextView
 
@@ -99,6 +113,10 @@ class MainActivity : AppCompatActivity() {
     // Status model terjemahan, ditampilkan di Beranda
     private var modelStatus = "Model terjemahan: belum disiapkan"
 
+    // Model bahasa yang paling umum diunduh otomatis, dan penanda tugas unduh atau hapus yang sedang berjalan
+    private val MODEL_UMUM = listOf("id", "en", "ja", "zh", "ko")
+    private var modelSibuk = false
+
     // Status suara bacaan, ditampilkan di Beranda
     private var speechStatus = "Suara bacaan: sedang disiapkan"
 
@@ -131,6 +149,8 @@ class MainActivity : AppCompatActivity() {
         spTarget = findViewById(R.id.spTarget)
         sbBubble = findViewById(R.id.sbBubble)
         tvBubbleVal = findViewById(R.id.tvBubbleVal)
+        sbText = findViewById(R.id.sbText)
+        tvTextVal = findViewById(R.id.tvTextVal)
         sbRate = findViewById(R.id.sbRate)
         tvRateVal = findViewById(R.id.tvRateVal)
         sbPitch = findViewById(R.id.sbPitch)
@@ -148,6 +168,7 @@ class MainActivity : AppCompatActivity() {
         spUi.setSelection(if (I18n.isEnglish(this)) 1 else 0)
 
         sbBubble.max = BUBBLE_MAX - BUBBLE_MIN
+        sbText.max = TEXT_MAX - TEXT_MIN
         sbRate.max = TTS_MAX - TTS_MIN
         sbPitch.max = TTS_MAX - TTS_MIN
         val changed = object : SeekBar.OnSeekBarChangeListener {
@@ -158,6 +179,7 @@ class MainActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(sb: SeekBar?) {}
         }
         sbBubble.setOnSeekBarChangeListener(changed)
+        sbText.setOnSeekBarChangeListener(changed)
         sbRate.setOnSeekBarChangeListener(changed)
         sbPitch.setOnSeekBarChangeListener(changed)
         loadSettings()
@@ -217,6 +239,8 @@ class MainActivity : AppCompatActivity() {
 
         // Siapkan model terjemahan begitu aplikasi dibuka, supaya bulatan siap dipakai
         prepareModels()
+        // Model bahasa yang paling umum diunduh otomatis, sekali saja
+        unduhModelUmum()
 
         // Cek pembaruan otomatis saat aplikasi pertama dibuka
         if (savedInstanceState == null) autoCheckUpdate()
@@ -298,6 +322,7 @@ class MainActivity : AppCompatActivity() {
         spSource.setSelection(Languages.SOURCE.indexOfFirst { it.code == src }.coerceAtLeast(0))
         spTarget.setSelection(Languages.TARGET.indexOfFirst { it.code == tgt }.coerceAtLeast(0))
         sbBubble.progress = p.getInt("bubble_dp", 56) - BUBBLE_MIN
+        sbText.progress = p.getInt("text_pct", 100) - TEXT_MIN
         sbRate.progress = p.getInt("tts_rate", 100) - TTS_MIN
         sbPitch.progress = p.getInt("tts_pitch", 100) - TTS_MIN
         updateLabels()
@@ -305,6 +330,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateLabels() {
         tvBubbleVal.text = "${sbBubble.progress + BUBBLE_MIN} dp"
+        tvTextVal.text = "${sbText.progress + TEXT_MIN}%"
         tvRateVal.text = "${sbRate.progress + TTS_MIN}%"
         tvPitchVal.text = "${sbPitch.progress + TTS_MIN}%"
     }
@@ -318,6 +344,7 @@ class MainActivity : AppCompatActivity() {
             .putString("source", Languages.SOURCE[spSource.selectedItemPosition].code)
             .putString("target", Languages.TARGET[spTarget.selectedItemPosition].code)
             .putInt("bubble_dp", sbBubble.progress + BUBBLE_MIN)
+            .putInt("text_pct", sbText.progress + TEXT_MIN)
             .putInt("tts_rate", sbRate.progress + TTS_MIN)
             .putInt("tts_pitch", sbPitch.progress + TTS_MIN)
             .apply()
@@ -620,44 +647,260 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Menampilkan model terjemahan yang sudah diunduh. Bisa dihapus untuk mengosongkan ruang. */
-    private fun kelolaModel() {
-        RemoteModelManager.getInstance()
-            .getDownloadedModels(TranslateRemoteModel::class.java)
-            .addOnSuccessListener { models ->
-                val list = models.sortedBy { it.language }
-                if (list.isEmpty()) {
-                    toast("Belum ada model yang diunduh")
-                    return@addOnSuccessListener
-                }
-                val names = list.map { namaBahasa(it.language) }.toTypedArray<CharSequence>()
-                AlertDialog.Builder(this)
-                    .setTitle(I18n.tr(this, "Model terjemahan"))
-                    .setItems(names) { _, which -> konfirmasiHapus(list[which]) }
-                    .setNegativeButton(I18n.tr(this, "Tutup"), null)
-                    .show()
-            }
-            .addOnFailureListener { toast("Gagal membaca daftar model") }
+    /** Semua bahasa yang dipakai aplikasi, untuk daftar model. */
+    private fun semuaKodeModel(): List<String> =
+        (Languages.SOURCE + Languages.TARGET).map { it.code }.filter { it != "auto" }.distinct()
+
+    /** Kode bahasa yang modelnya sudah diunduh. Harus dipanggil dari background thread. */
+    private fun kodeTerunduh(): Set<String> {
+        val models = Tasks.await(
+            RemoteModelManager.getInstance().getDownloadedModels(TranslateRemoteModel::class.java),
+            30, TimeUnit.SECONDS
+        )
+        return models.map { it.language }.toSet()
     }
 
-    private fun konfirmasiHapus(model: TranslateRemoteModel) {
-        val nama = namaBahasa(model.language)
+    /** Mengunduh satu model bahasa. Harus dipanggil dari background thread. */
+    private fun unduhSatuModel(kode: String): Boolean = try {
+        Tasks.await(
+            RemoteModelManager.getInstance().download(
+                TranslateRemoteModel.Builder(kode).build(),
+                DownloadConditions.Builder().build()
+            ),
+            300, TimeUnit.SECONDS
+        )
+        true
+    } catch (e: Exception) {
+        false
+    }
+
+    /** Menghapus satu model bahasa. Harus dipanggil dari background thread. */
+    private fun hapusSatuModel(kode: String): Boolean = try {
+        Tasks.await(
+            RemoteModelManager.getInstance().deleteDownloadedModel(TranslateRemoteModel.Builder(kode).build()),
+            30, TimeUnit.SECONDS
+        )
+        true
+    } catch (e: Exception) {
+        false
+    }
+
+    /**
+     * Mengunduh model bahasa yang paling sering dipakai, sekali saja.
+     * Setelah itu terjemahan tidak perlu menunggu unduhan lagi saat pertama dipakai.
+     */
+    private fun unduhModelUmum() {
+        if (prefs().getBoolean("model_umum_siap", false) || modelSibuk) return
+        modelSibuk = true
+        modelStatus = "Model bahasa umum sedang diunduh"
+        refreshStatus()
+        Thread {
+            val gagal: List<String> = try {
+                val terunduh = kodeTerunduh()
+                MODEL_UMUM.filter { it !in terunduh && !unduhSatuModel(it) }
+            } catch (e: Exception) {
+                MODEL_UMUM
+            }
+            if (gagal.isEmpty()) prefs().edit().putBoolean("model_umum_siap", true).apply()
+            runOnUiThread {
+                modelSibuk = false
+                if (!isDestroyed) {
+                    modelStatus = if (gagal.isEmpty()) {
+                        "Model bahasa umum sudah siap"
+                    } else {
+                        "Sebagian model belum terunduh. Dicoba lagi saat aplikasi dibuka"
+                    }
+                    refreshStatus()
+                }
+            }
+        }.start()
+    }
+
+    /** Dialog kelola model yang sedang terbuka. Null kalau dialognya sudah ditutup. */
+    private var kelolaDaftar: LinearLayout? = null
+    private var kelolaInfo: TextView? = null
+
+    /** Dialog kelola model: daftar semua bahasa, dengan tombol unduh atau hapus per bahasa. */
+    private fun kelolaModel() {
+        val info = TextView(this).apply {
+            textSize = 13f
+            setTextColor(Color.parseColor("#616161"))
+        }
+        val tombolSemua = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        tombolSemua.addView(
+            MaterialButton(this).apply {
+                text = I18n.tr(this@MainActivity, "Unduh semua")
+                setOnClickListener { konfirmasiUnduhSemua() }
+            },
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(6) }
+        )
+        tombolSemua.addView(
+            MaterialButton(this).apply {
+                text = I18n.tr(this@MainActivity, "Hapus semua")
+                setOnClickListener { konfirmasiHapusSemua() }
+            },
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(6) }
+        )
+        val daftar = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val isi = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+            addView(info)
+            addView(
+                tombolSemua,
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    .apply { topMargin = dp(10) }
+            )
+            addView(
+                daftar,
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    .apply { topMargin = dp(10) }
+            )
+        }
+        kelolaInfo = info
+        kelolaDaftar = daftar
+        AlertDialog.Builder(this)
+            .setTitle(I18n.tr(this, "Model bahasa"))
+            .setView(ScrollView(this).apply { addView(isi) })
+            .setNegativeButton(I18n.tr(this, "Tutup"), null)
+            .setOnDismissListener {
+                kelolaDaftar = null
+                kelolaInfo = null
+            }
+            .show()
+        muatUlangDaftar()
+    }
+
+    /** Membaca status semua model, lalu menggambar ulang daftarnya di dialog yang sedang terbuka. */
+    private fun muatUlangDaftar() {
+        kelolaInfo?.text = I18n.tr(this, "Membaca status model...")
+        Thread {
+            val terunduh: Set<String>? = try {
+                kodeTerunduh()
+            } catch (e: Exception) {
+                null
+            }
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                val daftar = kelolaDaftar ?: return@runOnUiThread
+                val info = kelolaInfo ?: return@runOnUiThread
+                if (terunduh == null) {
+                    info.text = I18n.tr(this, "Gagal membaca daftar model")
+                    return@runOnUiThread
+                }
+                info.text = I18n.tr(this, "Model yang sudah diunduh bisa dipakai tanpa internet.")
+                daftar.removeAllViews()
+                for (kode in semuaKodeModel()) {
+                    daftar.addView(barisModel(kode, kode in terunduh))
+                }
+            }
+        }.start()
+    }
+
+    /** Satu baris bahasa: nama, status, dan tombol unduh atau hapus. */
+    private fun barisModel(kode: String, sudah: Boolean): View {
+        val nama = namaBahasa(kode)
+        val teks = TextView(this).apply {
+            text = nama + "\n" + I18n.tr(this@MainActivity, if (sudah) "Sudah diunduh" else "Belum diunduh")
+            textSize = 15f
+            setTextColor(Color.parseColor("#111111"))
+        }
+        val tombol = MaterialButton(this).apply {
+            text = I18n.tr(this@MainActivity, if (sudah) "Hapus" else "Unduh")
+            setOnClickListener {
+                if (sudah) konfirmasiHapusSatu(kode, nama) else jalankanUnduh(listOf(kode))
+            }
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(6), 0, dp(6))
+            addView(teks, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(
+                tombol,
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            )
+        }
+    }
+
+    /** Mengunduh satu atau beberapa model di background. Hanya satu tugas yang berjalan dalam satu waktu. */
+    private fun jalankanUnduh(kodes: List<String>) {
+        if (modelSibuk) {
+            toast("Tunggu, masih ada model yang diproses")
+            return
+        }
+        modelSibuk = true
+        val namaList = kodes.map { namaBahasa(it) }
+        Thread {
+            var gagal = 0
+            kodes.forEachIndexed { i, kode ->
+                val pesan = "Mengunduh ${namaList[i]} (${i + 1} dari ${kodes.size})"
+                runOnUiThread { kelolaInfo?.text = pesan }
+                if (!unduhSatuModel(kode)) gagal++
+            }
+            runOnUiThread {
+                modelSibuk = false
+                toast(
+                    if (gagal == 0) "Unduhan selesai"
+                    else "Ada beberapa model yang gagal diunduh. Pastikan internet aktif."
+                )
+                muatUlangDaftar()
+            }
+        }.start()
+    }
+
+    /** Menghapus satu atau beberapa model di background. Hanya model yang memang sudah diunduh yang dihapus. */
+    private fun jalankanHapus(kodes: List<String>) {
+        if (modelSibuk) {
+            toast("Tunggu, masih ada model yang diproses")
+            return
+        }
+        modelSibuk = true
+        Thread {
+            var gagal = 0
+            try {
+                val terunduh = kodeTerunduh()
+                kodes.filter { it in terunduh }.forEach { if (!hapusSatuModel(it)) gagal++ }
+            } catch (e: Exception) {
+                gagal++
+            }
+            Translator.forgetReady()
+            runOnUiThread {
+                modelSibuk = false
+                toast(if (gagal == 0) "Model dihapus" else "Ada beberapa model yang gagal dihapus")
+                muatUlangDaftar()
+            }
+        }.start()
+    }
+
+    private fun konfirmasiHapusSatu(kode: String, nama: String) {
         AlertDialog.Builder(this)
             .setTitle(I18n.tr(this, "Hapus model ") + nama + "?")
             .setMessage(I18n.tr(this, "Model ini akan dihapus dari HP. Kalau dipakai lagi, perlu diunduh ulang dengan internet."))
-            .setPositiveButton(I18n.tr(this, "Hapus")) { _, _ -> hapusModel(model, nama) }
+            .setPositiveButton(I18n.tr(this, "Hapus")) { _, _ -> jalankanHapus(listOf(kode)) }
             .setNegativeButton(I18n.tr(this, "Batal"), null)
             .show()
     }
 
-    private fun hapusModel(model: TranslateRemoteModel, nama: String) {
-        RemoteModelManager.getInstance().deleteDownloadedModel(model)
-            .addOnSuccessListener {
-                Translator.forgetReady()
-                toast(I18n.tr(this, "Model ") + nama + I18n.tr(this, " dihapus"))
-            }
-            .addOnFailureListener { toast(I18n.tr(this, "Gagal menghapus model ") + nama) }
+    private fun konfirmasiUnduhSemua() {
+        AlertDialog.Builder(this)
+            .setTitle(I18n.tr(this, "Unduh semua model?"))
+            .setMessage(I18n.tr(this, "Semua bahasa akan diunduh. Ini bisa memakai banyak kuota internet dan ruang penyimpanan HP. Sebaiknya pakai Wi-Fi."))
+            .setPositiveButton(I18n.tr(this, "Lanjutkan")) { _, _ -> jalankanUnduh(semuaKodeModel()) }
+            .setNegativeButton(I18n.tr(this, "Batal"), null)
+            .show()
     }
+
+    private fun konfirmasiHapusSemua() {
+        AlertDialog.Builder(this)
+            .setTitle(I18n.tr(this, "Hapus semua model?"))
+            .setMessage(I18n.tr(this, "Semua model yang sudah diunduh akan dihapus dari HP. Model akan diunduh lagi saat dipakai."))
+            .setPositiveButton(I18n.tr(this, "Hapus")) { _, _ -> jalankanHapus(semuaKodeModel()) }
+            .setNegativeButton(I18n.tr(this, "Batal"), null)
+            .show()
+    }
+
+    private fun dp(nilai: Int): Int = (nilai * resources.displayMetrics.density).roundToInt()
 
     private fun namaBahasa(kode: String): String =
         Languages.TARGET.firstOrNull { it.code == kode }?.label?.let { I18n.tr(this, it) } ?: kode

@@ -22,6 +22,13 @@ class OverlayView(context: Context) : View(context) {
 
     private var items: List<Item> = emptyList()
 
+    /** Pengali ukuran tulisan (1.0 = normal). */
+    var textScale: Float = 1f
+        set(value) {
+            field = value
+            invalidate()
+        }
+
     // Putih penuh, supaya tulisan asli di bawahnya tidak kelihatan
     private val bgPaint = Paint().apply {
         color = Color.WHITE
@@ -53,8 +60,9 @@ class OverlayView(context: Context) : View(context) {
         canvas.save()
         canvas.translate(-minLeft, -minTop)
 
+        val scale = textScale.coerceAtLeast(0.3f)
         for (item in items) {
-            drawItem(canvas, item, minLeft, screenRight, screenBottom)
+            drawItem(canvas, item, scale, minLeft, screenRight, screenBottom)
         }
 
         canvas.restore()
@@ -63,6 +71,7 @@ class OverlayView(context: Context) : View(context) {
     private fun drawItem(
         canvas: Canvas,
         item: Item,
+        scale: Float,
         minLeft: Float,
         screenRight: Float,
         screenBottom: Float
@@ -79,8 +88,9 @@ class OverlayView(context: Context) : View(context) {
         val wrapW = (maxW - 2f * TEXT_PAD).toInt().coerceAtLeast(10)
 
         // Tulisan dibungkus per kata. Kalau masih terlalu tinggi, ukurannya diperkecil
-        val maxTextH = h + 2f * padY - 2f
-        val fit = fitText(item.text, wrapW, (h * 0.8f).coerceAtLeast(MIN_TEXT_PX), maxTextH)
+        // Tinggi tulisan ikut membesar kalau ukuran tulisan di Pengaturan lebih dari 100%
+        val maxTextH = maxOf(h + 2f * padY - 2f, (h + 2f * padY) * scale - 2f)
+        val fit = fitText(item.text, wrapW, (h * 0.8f * scale).coerceAtLeast(MIN_TEXT_PX), maxTextH)
         val layout = fit.layout
 
         var longest = 0f
