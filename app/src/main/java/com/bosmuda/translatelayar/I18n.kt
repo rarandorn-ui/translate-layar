@@ -215,6 +215,10 @@ object I18n {
         "1. Izinkan tampil di atas aplikasi lain" to "1. Allow display over other apps",
         "2. Mulai (izinkan rekam layar)" to "2. Start (allow screen recording)",
         "Hentikan layanan" to "Stop service",
+        "Siap dipakai" to "Ready to use",
+        "Izin tampil di atas aplikasi lain" to "Display over other apps",
+        "Izin tampil di atas aplikasi lain belum aktif" to "Display over other apps is not active yet",
+        "Suara bacaan siap" to "Speech ready",
         "Dukung pengembang" to "Support the developer",
         "Kalau aplikasi ini membantu, kamu bisa mendukung pengembangannya lewat Saweria." to
             "If this app helps you, you can support its development through Saweria.",

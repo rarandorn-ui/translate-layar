@@ -116,8 +116,10 @@ class MainActivity : AppCompatActivity() {
     // Status model terjemahan, ditampilkan di Beranda
     private var modelStatus = "Model terjemahan: belum disiapkan"
 
-    // Model bahasa yang paling umum diunduh otomatis, dan penanda tugas unduh atau hapus yang sedang berjalan
+    // Model bahasa yang paling umum diunduh otomatis
     private val MODEL_UMUM = listOf("id", "en", "ja", "zh", "ko")
+    // Penanda unduhan otomatis di latar belakang, dan penanda unduh atau hapus manual dari dialog (terpisah supaya tidak saling mengunci)
+    private var modelOtomatisJalan = false
     private var modelSibuk = false
 
     // Status suara bacaan, ditampilkan di Beranda
@@ -285,13 +287,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshStatus() {
         val overlayOk = Settings.canDrawOverlays(this)
+        val modelOk = modelStatus == "Model terjemahan: siap"
+        val suaraOk = speechStatus == "Suara bacaan: siap"
         tvStatus.text = buildString {
+            // Daftar siap dipakai: tanda centang untuk yang sudah beres, tanda silang atau jam untuk yang belum.
             // Di dalam buildString, "this" adalah StringBuilder, jadi konteks aplikasinya ditulis eksplisit
-            appendLine(I18n.tr(this@MainActivity, "Izin tampil di atas aplikasi lain: ${if (overlayOk) "sudah" else "belum"}"))
-            appendLine(I18n.tr(this@MainActivity, modelStatus))
-            appendLine(I18n.tr(this@MainActivity, speechStatus))
-            appendLine(I18n.tr(this@MainActivity, "Izin rekam layar diminta setiap kali layanan dimulai. Ini aturan Android."))
-            appendLine(I18n.tr(this@MainActivity, "Kalau layanan sedang jalan, ukuran langsung berubah saat slider dilepas."))
+            val ctx = this@MainActivity
+            appendLine(if (overlayOk) "✓ " + I18n.tr(ctx, "Izin tampil di atas aplikasi lain") else "✗ " + I18n.tr(ctx, "Izin tampil di atas aplikasi lain belum aktif"))
+            val tandaModel = if (modelOk) "✓ " else if (modelStatus.contains("sedang")) "⏳ " else "✗ "
+            appendLine(tandaModel + I18n.tr(ctx, if (modelOk) "Model terjemahan siap" else modelStatus))
+            val tandaSuara = if (suaraOk) "✓ " else if (speechStatus.contains("sedang")) "⏳ " else "✗ "
+            appendLine(tandaSuara + I18n.tr(ctx, if (suaraOk) "Suara bacaan siap" else speechStatus))
+            appendLine("• " + I18n.tr(ctx, "Izin rekam layar diminta setiap kali layanan dimulai. Ini aturan Android."))
+            appendLine(I18n.tr(ctx, "Kalau layanan sedang jalan, ukuran langsung berubah saat slider dilepas."))
         }
     }
 
@@ -733,8 +741,8 @@ class MainActivity : AppCompatActivity() {
      * Setelah itu terjemahan tidak perlu menunggu unduhan lagi saat pertama dipakai.
      */
     private fun unduhModelUmum() {
-        if (prefs().getBoolean("model_umum_siap", false) || modelSibuk) return
-        modelSibuk = true
+        if (prefs().getBoolean("model_umum_siap", false) || modelOtomatisJalan) return
+        modelOtomatisJalan = true
         modelStatus = "Model bahasa umum sedang diunduh"
         refreshStatus()
         Thread {
@@ -746,7 +754,7 @@ class MainActivity : AppCompatActivity() {
             }
             if (gagal.isEmpty()) prefs().edit().putBoolean("model_umum_siap", true).apply()
             runOnUiThread {
-                modelSibuk = false
+                modelOtomatisJalan = false
                 if (!isDestroyed) {
                     modelStatus = if (gagal.isEmpty()) {
                         "Model bahasa umum sudah siap"
@@ -754,6 +762,8 @@ class MainActivity : AppCompatActivity() {
                         "Sebagian model belum terunduh. Dicoba lagi saat aplikasi dibuka"
                     }
                     refreshStatus()
+                    // Dialog kelola model yang sedang terbuka ikut diperbarui, supaya tombolnya aktif lagi
+                    if (kelolaDaftar != null) muatUlangDaftar()
                 }
             }
         }.start()
