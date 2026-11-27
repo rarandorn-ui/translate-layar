@@ -27,19 +27,11 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="RTTS"
-                    android:textColor="#111111"
-                    android:textSize="26sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
                     android:layout_marginBottom="16dp"
-                    android:text="Real Time Translate Screen"
-                    android:textColor="#666666"
-                    android:textSize="15sp" />
+                    android:text="RTTS. Real Time Translate Screen"
+                    android:textColor="#111111"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
@@ -53,7 +45,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="18dp">
+                        android:padding="18dp"
+                        android:paddingTop="12dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -67,8 +60,9 @@
                             android:id="@+id/tvStatus"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:textColor="#424242" />
+                            android:layout_marginTop="4dp"
+                            android:textColor="#424242"
+                            android:textSize="16sp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -84,7 +78,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="18dp">
+                        android:padding="18dp"
+                        android:paddingTop="12dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -97,30 +92,34 @@
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:text="1. Izinkan tampil di atas aplikasi lain."
-                            android:textColor="#111111" />
+                            android:textColor="#111111"
+                            android:textSize="16sp" />
 
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
                             android:text="2. Tekan Mulai dan izinkan rekam layar."
-                            android:textColor="#111111" />
+                            android:textColor="#111111"
+                            android:textSize="16sp" />
 
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
                             android:text="3. Ketuk bulatan untuk menyalakan terjemahan otomatis."
-                            android:textColor="#111111" />
+                            android:textColor="#111111"
+                            android:textSize="16sp" />
 
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="4. Tekan lama bulatan untuk menu: terjemahan sekali, salin teks, atau bacakan terjemahan."
-                            android:textColor="#111111" />
+                            android:text="4. Tekan lama bulatan untuk menu: salin teks, atau bacakan terjemahan."
+                            android:textColor="#111111"
+                            android:textSize="16sp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -185,7 +184,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="18dp">
+                        android:padding="18dp"
+                        android:paddingTop="12dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -198,9 +198,10 @@
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:text="Kalau aplikasi ini membantu, kamu bisa mendukung pengembangannya lewat Saweria."
-                            android:textColor="#424242" />
+                            android:textColor="#424242"
+                            android:textSize="16sp" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnSupportHome"
