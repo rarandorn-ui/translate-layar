@@ -235,7 +235,10 @@ class TranslateService : Service() {
         lp.height = bubbleSizePx
         if (lp.x > screenW / 2) lp.x = screenW - bubbleSizePx
         if (lp.y > screenH - bubbleSizePx) lp.y = screenH - bubbleSizePx
-        windowManager.updateViewLayout(tv, lp)
+        // Bulatan dipasang ulang dengan ukuran baru, supaya perubahannya pasti terlihat di layar
+        runCatching { windowManager.removeView(tv) }
+        windowManager.addView(tv, lp)
+        toast("Pengaturan diterapkan")
     }
 
     private fun startCapture(resultCode: Int, data: Intent) {

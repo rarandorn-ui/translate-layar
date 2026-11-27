@@ -138,8 +138,11 @@ object I18n {
         "Izin tampil di atas aplikasi lain: belum" to "Display over other apps: not yet",
         "Izin rekam layar diminta setiap kali layanan dimulai. Ini aturan Android." to
             "Screen recording permission is asked every time the service starts. This is an Android rule.",
-        "Kalau layanan sedang jalan, ukuran langsung berubah saat Simpan pengaturan." to
-            "If the service is running, the size changes right away when you tap Save settings.",
+        "Kalau layanan sedang jalan, ukuran langsung berubah saat slider dilepas." to
+            "If the service is running, the size changes right away when you let go of the slider.",
+        "Pengaturan diterapkan" to "Settings applied",
+        "Sedang diunduh..." to "Downloading...",
+        "Menunggu" to "Waiting",
         "Layanan sudah berjalan. Ketuk bulatan untuk memakainya." to "The service is already running. Tap the bubble to use it.",
         "Izinkan 'tampil di atas aplikasi lain' dulu" to "Allow 'display over other apps' first",
         "Izin sudah aktif" to "Permission is already on",

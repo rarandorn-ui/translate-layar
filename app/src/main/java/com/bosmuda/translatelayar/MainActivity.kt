@@ -7,18 +7,21 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.graphics.Color
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import com.google.android.gms.tasks.Tasks
 import com.google.android.material.button.MaterialButton
@@ -171,18 +174,30 @@ class MainActivity : AppCompatActivity() {
         sbText.max = TEXT_MAX - TEXT_MIN
         sbRate.max = TTS_MAX - TTS_MIN
         sbPitch.max = TTS_MAX - TTS_MIN
-        val changed = object : SeekBar.OnSeekBarChangeListener {
+        // Semua slider disimpan dan langsung berlaku begitu jari dilepas, tanpa perlu tombol Simpan
+        val geser = object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
                 updateLabels()
             }
             override fun onStartTrackingTouch(sb: SeekBar?) {}
-            override fun onStopTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) { simpanOtomatis() }
         }
-        sbBubble.setOnSeekBarChangeListener(changed)
-        sbText.setOnSeekBarChangeListener(changed)
-        sbRate.setOnSeekBarChangeListener(changed)
-        sbPitch.setOnSeekBarChangeListener(changed)
+        sbBubble.setOnSeekBarChangeListener(geser)
+        sbText.setOnSeekBarChangeListener(geser)
+        sbRate.setOnSeekBarChangeListener(geser)
+        sbPitch.setOnSeekBarChangeListener(geser)
         loadSettings()
+
+        // Bahasa dan tampilan disimpan begitu dipilih, tanpa perlu tombol Simpan
+        val pilihBahasa = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                simpanBahasa()
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        spSource.onItemSelectedListener = pilihBahasa
+        spTarget.onItemSelectedListener = pilihBahasa
+        spUi.onItemSelectedListener = pilihBahasa
 
         // Navigasi bawah: Beranda dan Pengaturan
         val pageHome = findViewById<View>(R.id.pageHome)
@@ -209,15 +224,6 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.btnSupport).setOnClickListener(openSupport)
         findViewById<Button>(R.id.btnSupportHome).setOnClickListener(openSupport)
-        findViewById<Button>(R.id.btnSave).setOnClickListener {
-            val gantiBahasa = saveSettings()
-            if (gantiBahasa) {
-                // Bahasa tampilan berganti, jadi layar dibuat ulang supaya langsung terlihat
-                recreate()
-                return@setOnClickListener
-            }
-            toast("Pengaturan disimpan")
-        }
         findViewById<Button>(R.id.btnOverlay).setOnClickListener {
             requestOverlayPermission()
         }
@@ -267,7 +273,7 @@ class MainActivity : AppCompatActivity() {
             appendLine(I18n.tr(this@MainActivity, modelStatus))
             appendLine(I18n.tr(this@MainActivity, speechStatus))
             appendLine(I18n.tr(this@MainActivity, "Izin rekam layar diminta setiap kali layanan dimulai. Ini aturan Android."))
-            appendLine(I18n.tr(this@MainActivity, "Kalau layanan sedang jalan, ukuran langsung berubah saat Simpan pengaturan."))
+            appendLine(I18n.tr(this@MainActivity, "Kalau layanan sedang jalan, ukuran langsung berubah saat slider dilepas."))
         }
     }
 
@@ -333,6 +339,23 @@ class MainActivity : AppCompatActivity() {
         tvTextVal.text = "${sbText.progress + TEXT_MIN}%"
         tvRateVal.text = "${sbRate.progress + TTS_MIN}%"
         tvPitchVal.text = "${sbPitch.progress + TTS_MIN}%"
+    }
+
+    /** Menyimpan semua pengaturan begitu ada yang berubah. Layar dibuat ulang kalau bahasa tampilan berganti. */
+    private fun simpanOtomatis() {
+        if (saveSettings()) recreate()
+    }
+
+    /** Dipanggil saat bahasa dipilih. Hanya menyimpan kalau pilihannya benar-benar berbeda dari yang tersimpan. */
+    private fun simpanBahasa() {
+        val p = prefs()
+        val src = Languages.SOURCE[spSource.selectedItemPosition].code
+        val tgt = Languages.TARGET[spTarget.selectedItemPosition].code
+        val uiBaru = if (spUi.selectedItemPosition == 1) "en" else "id"
+        val sama = src == (p.getString("source", "auto") ?: "auto") &&
+            tgt == (p.getString("target", "id") ?: "id") &&
+            uiBaru == (p.getString("ui_lang", "id") ?: "id")
+        if (!sama) simpanOtomatis()
     }
 
     /** Menyimpan pengaturan. Mengembalikan true kalau bahasa tampilan berganti, supaya layar dibuat ulang. */
@@ -720,6 +743,11 @@ class MainActivity : AppCompatActivity() {
     private var kelolaDaftar: LinearLayout? = null
     private var kelolaInfo: TextView? = null
 
+    // Status model di dialog: daftar yang sudah diunduh, bahasa yang sedang diunduh, dan yang menunggu
+    private var terunduhTerakhir: Set<String> = emptySet()
+    private var kodeSedangDiunduh: String? = null
+    private val antrianUnduh = LinkedHashSet<String>()
+
     /** Dialog kelola model: daftar semua bahasa, dengan tombol unduh atau hapus per bahasa. */
     private fun kelolaModel() {
         val info = TextView(this).apply {
@@ -782,44 +810,74 @@ class MainActivity : AppCompatActivity() {
             }
             runOnUiThread {
                 if (isDestroyed) return@runOnUiThread
-                val daftar = kelolaDaftar ?: return@runOnUiThread
                 val info = kelolaInfo ?: return@runOnUiThread
                 if (terunduh == null) {
                     info.text = I18n.tr(this, "Gagal membaca daftar model")
                     return@runOnUiThread
                 }
                 info.text = I18n.tr(this, "Model yang sudah diunduh bisa dipakai tanpa internet.")
-                daftar.removeAllViews()
-                for (kode in semuaKodeModel()) {
-                    daftar.addView(barisModel(kode, kode in terunduh))
-                }
+                terunduhTerakhir = terunduh
+                renderDaftar()
             }
         }.start()
     }
 
-    /** Satu baris bahasa: nama, status, dan tombol unduh atau hapus. */
+    /** Menggambar ulang daftar bahasa di dialog, memakai status terakhir. */
+    private fun renderDaftar() {
+        val daftar = kelolaDaftar ?: return
+        daftar.removeAllViews()
+        for (kode in semuaKodeModel()) {
+            daftar.addView(barisModel(kode, kode in terunduhTerakhir))
+        }
+    }
+
+    /** Satu baris bahasa: nama, status, perkiraan ukuran, dan tombol. Saat sedang diunduh, ada bilah yang bergerak. */
     private fun barisModel(kode: String, sudah: Boolean): View {
         val nama = namaBahasa(kode)
+        val sedang = kode == kodeSedangDiunduh
+        val antri = kode in antrianUnduh
+        val status = when {
+            sedang -> I18n.tr(this, "Sedang diunduh...")
+            antri -> I18n.tr(this, "Menunggu")
+            sudah -> I18n.tr(this, "Sudah diunduh")
+            else -> I18n.tr(this, "Belum diunduh")
+        }
         val teks = TextView(this).apply {
-            text = nama + "\n" + I18n.tr(this@MainActivity, if (sudah) "Sudah diunduh" else "Belum diunduh")
+            text = nama + "\n" + status
             textSize = 15f
             setTextColor(Color.parseColor("#111111"))
         }
         val tombol = MaterialButton(this).apply {
             text = I18n.tr(this@MainActivity, if (sudah) "Hapus" else "Unduh")
+            isEnabled = !modelSibuk
             setOnClickListener {
                 if (sudah) konfirmasiHapusSatu(kode, nama) else jalankanUnduh(listOf(kode))
             }
         }
-        return LinearLayout(this).apply {
+        val atas = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(6), 0, dp(6))
             addView(teks, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(
                 tombol,
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             )
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(6), 0, dp(6))
+            addView(atas)
+            if (sedang) {
+                // ML Kit tidak memberi persentase unduhan, jadi bilahnya bergerak terus sampai selesai
+                val bilah = ProgressBar(this@MainActivity, null, android.R.attr.progressBarStyleHorizontal).apply {
+                    isIndeterminate = true
+                    indeterminateTintList = ColorStateList.valueOf(Color.parseColor("#D32F2F"))
+                }
+                addView(
+                    bilah,
+                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(6)).apply { topMargin = dp(6) }
+                )
+            }
         }
     }
 
@@ -830,16 +888,29 @@ class MainActivity : AppCompatActivity() {
             return
         }
         modelSibuk = true
+        antrianUnduh.clear()
+        antrianUnduh.addAll(kodes)
+        renderDaftar()
         val namaList = kodes.map { namaBahasa(it) }
         Thread {
             var gagal = 0
             kodes.forEachIndexed { i, kode ->
-                val pesan = "Mengunduh ${namaList[i]} (${i + 1} dari ${kodes.size})"
-                runOnUiThread { kelolaInfo?.text = pesan }
-                if (!unduhSatuModel(kode)) gagal++
+                runOnUiThread {
+                    antrianUnduh.remove(kode)
+                    kodeSedangDiunduh = kode
+                    kelolaInfo?.text = "Mengunduh ${namaList[i]} (${i + 1} dari ${kodes.size})"
+                    renderDaftar()
+                }
+                val ok = unduhSatuModel(kode)
+                if (!ok) gagal++
+                runOnUiThread {
+                    if (ok) terunduhTerakhir = terunduhTerakhir + kode
+                    kodeSedangDiunduh = null
+                }
             }
             runOnUiThread {
                 modelSibuk = false
+                antrianUnduh.clear()
                 toast(
                     if (gagal == 0) "Unduhan selesai"
                     else "Ada beberapa model yang gagal diunduh. Pastikan internet aktif."

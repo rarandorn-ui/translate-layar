@@ -358,13 +358,6 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnSave"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Simpan pengaturan"
-                    app:backgroundTint="#D32F2F" />
-
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
