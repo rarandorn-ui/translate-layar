@@ -16,7 +16,13 @@ import android.view.View
  */
 class OverlayView(context: Context) : View(context) {
 
-    data class Item(val rect: RectF, val text: String)
+    /** [bg] dan [fg] adalah warna kotak dan tulisan, diambil dari warna latar di sekitar teks asli. */
+    data class Item(
+        val rect: RectF,
+        val text: String,
+        val bg: Int = Color.WHITE,
+        val fg: Int = Color.BLACK
+    )
 
     private class Fit(val layout: StaticLayout, val size: Float)
 
@@ -29,16 +35,13 @@ class OverlayView(context: Context) : View(context) {
             invalidate()
         }
 
-    // Putih penuh, supaya tulisan asli di bawahnya tidak kelihatan
+    // Warna kotak diambil per baris dari latar di sekitar teks, jadi tidak selalu putih
     private val bgPaint = Paint().apply {
-        color = Color.WHITE
         style = Paint.Style.FILL
     }
 
     // TextPaint dipakai karena StaticLayout (pembungkus baris) memerlukannya
-    private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.BLACK
-    }
+    private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
 
     fun setItems(newItems: List<Item>) {
         items = newItems
@@ -61,36 +64,64 @@ class OverlayView(context: Context) : View(context) {
         canvas.translate(-minLeft, -minTop)
 
         val scale = textScale.coerceAtLeast(0.3f)
-        for (item in items) {
-            drawItem(canvas, item, scale, minLeft, screenRight, screenBottom)
+
+        // Digambar dari atas ke bawah, supaya kotak di atas bisa dijadikan acuan agar tidak saling menimpa
+        val sorted = items.sortedWith(compareBy({ it.rect.top }, { it.rect.left }))
+        val placed = ArrayList<RectF>()
+        for ((idx, item) in sorted.withIndex()) {
+            // Batas bawah kotak: tepat sebelum baris berikutnya yang sejajar, supaya teks itu tidak tertutup
+            var limit = screenBottom - 2f
+            for (j in idx + 1 until sorted.size) {
+                val other = sorted[j]
+                val sejajar = other.rect.left < item.rect.right && other.rect.right > item.rect.left
+                if (other.rect.top > item.rect.top + 1f && sejajar) {
+                    limit = minOf(limit, other.rect.top - 1f)
+                    break
+                }
+            }
+            placed.add(drawItem(canvas, item, scale, minLeft, screenRight, limit, placed))
         }
 
         canvas.restore()
     }
 
+    /** Menggambar satu kotak terjemahan, lalu mengembalikan area kotak itu. */
     private fun drawItem(
         canvas: Canvas,
         item: Item,
         scale: Float,
         minLeft: Float,
         screenRight: Float,
-        screenBottom: Float
-    ) {
+        limit: Float,
+        placed: List<RectF>
+    ): RectF {
         val rect = item.rect
         val h = rect.height().coerceAtLeast(MIN_BOX_PX)
         val padX = h * 0.12f
         val padY = h * 0.18f
 
-        // Kotak menutupi teks asli sepenuhnya. Kotak boleh sedikit melebar,
-        // supaya terjemahan yang lebih panjang bisa dibungkus dengan lebih nyaman
+        // Kotak boleh sedikit melebar, supaya terjemahan yang lebih panjang bisa dibungkus dengan lebih nyaman
         val left = (rect.left - padX).coerceAtLeast(minLeft)
         val maxW = minOf(screenRight - 2f - left, maxOf(rect.width() * 1.5f, h * 3f) + 2f * padX)
         val wrapW = (maxW - 2f * TEXT_PAD).toInt().coerceAtLeast(10)
 
-        // Tulisan dibungkus per kata. Kalau masih terlalu tinggi, ukurannya diperkecil
-        // Tinggi tulisan ikut membesar kalau ukuran tulisan di Pengaturan lebih dari 100%
-        val maxTextH = maxOf(h + 2f * padY - 2f, (h + 2f * padY) * scale - 2f)
-        val fit = fitText(item.text, wrapW, (h * 0.8f * scale).coerceAtLeast(MIN_TEXT_PX), maxTextH)
+        // Kotak tidak boleh menimpa kotak yang sudah digambar di atasnya
+        var top = rect.top - padY
+        for (p in placed) {
+            if (p.left < left + maxW && p.right > left && p.top <= top && p.bottom > top) {
+                top = p.bottom + 1f
+            }
+        }
+
+        // Tulisan harus muat sampai batas bawah. Kalau tidak muat, ukurannya diperkecil
+        val room = (limit - top).coerceAtLeast(MIN_BOX_PX)
+        val maxTextH = minOf(maxOf(h + 2f * padY - 2f, (h + 2f * padY) * scale - 2f), room - 2f)
+        val fit = fitText(
+            item.text,
+            wrapW,
+            (h * 0.8f * scale).coerceAtLeast(MIN_TEXT_PX),
+            maxTextH.coerceAtLeast(MIN_TEXT_PX)
+        )
         val layout = fit.layout
 
         var longest = 0f
@@ -99,19 +130,22 @@ class OverlayView(context: Context) : View(context) {
         }
         val boxW = minOf(maxW, maxOf(rect.width() + 2f * padX, longest + 2f * TEXT_PAD))
 
-        // Kotak hanya tumbuh ke bawah kalau teksnya masih lebih tinggi, dan tidak keluar dari layar
-        val top = rect.top - padY
+        // Kotak hanya tumbuh ke bawah kalau teksnya masih lebih tinggi, dan tidak melewati batas bawah
         val boxH = maxOf(h + 2f * padY, layout.height + 2f * padY)
-        val bottom = minOf(top + boxH, screenBottom - 2f)
+        val bottom = maxOf(top + MIN_BOX_PX, minOf(top + boxH, limit))
 
+        bgPaint.color = item.bg
         canvas.drawRect(left, top, left + boxW, bottom, bgPaint)
 
-        // Ukuran harus dikembalikan dulu, karena StaticLayout menggambar memakai ukuran paint saat ini
+        // Ukuran dan warna harus diatur dulu, karena StaticLayout menggambar memakai paint saat ini
         textPaint.textSize = fit.size
+        textPaint.color = item.fg
         canvas.save()
         canvas.translate(left + TEXT_PAD, top + (bottom - top - layout.height) / 2f)
         layout.draw(canvas)
         canvas.restore()
+
+        return RectF(left, top, left + boxW, bottom)
     }
 
     /** Mencari ukuran tulisan yang tingginya muat di [maxH]. Di ukuran terkecil, kotak dibiarkan tumbuh. */

@@ -142,6 +142,9 @@ object Translator {
     /** Bahasa asal untuk satu baris. Kalau pengenal tidak yakin, dipakai tebakan dari jenis huruf, lalu pilihan pengguna. */
     private fun resolveSource(text: String, chosen: String?): String {
         val pick: String? = chosen?.takeIf { TranslateLanguage.fromLanguageTag(it) != null }
+        // Kana dan Hangul hanya dipakai di satu bahasa. Pengenal sering salah menebak caption Jepang yang pendek
+        // sebagai Mandarin atau Korea, lalu model yang salah dipakai. Jadi jenis huruf dicek lebih dulu
+        sureScript(text)?.let { return it }
         val detected: String? = detectLine(text)?.takeIf { TranslateLanguage.fromLanguageTag(it) != null }
         if (detected != null) {
             // Jepang, Mandarin, dan Korea sering tertukar. Kalau pilihan pengguna salah satu dari itu, pilihan itu yang dipakai
@@ -149,6 +152,26 @@ object Translator {
             return detected
         }
         return scriptGuess(text, pick) ?: pick ?: "en"
+    }
+
+    /** Bahasa yang pasti dari jenis huruf: kana berarti Jepang, Hangul berarti Korea. Selain itu null. */
+    private fun sureScript(text: String): String? {
+        var kana = false
+        var hangul = false
+        for (ch in text) {
+            when (Character.UnicodeBlock.of(ch)) {
+                Character.UnicodeBlock.HIRAGANA, Character.UnicodeBlock.KATAKANA -> kana = true
+                Character.UnicodeBlock.HANGUL_SYLLABLES,
+                Character.UnicodeBlock.HANGUL_JAMO,
+                Character.UnicodeBlock.HANGUL_COMPATIBILITY_JAMO -> hangul = true
+                else -> Unit
+            }
+        }
+        return when {
+            kana -> "ja"
+            hangul -> "ko"
+            else -> null
+        }
     }
 
     /**

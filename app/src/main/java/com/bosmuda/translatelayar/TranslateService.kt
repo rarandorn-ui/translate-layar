@@ -525,7 +525,7 @@ class TranslateService : Service() {
         }
 
         rec.process(InputImage.fromBitmap(bmp, 0))
-            .addOnSuccessListener { result -> onOcrDone(result, sig) }
+            .addOnSuccessListener { result -> onOcrDone(result, sig, bmp) }
             .addOnFailureListener {
                 // Jangan tandai layar ini sudah dibaca, supaya dicoba lagi di putaran berikutnya
                 finishCycle()
@@ -538,16 +538,16 @@ class TranslateService : Service() {
         return if (id > 0) resources.getDimensionPixelSize(id) else dp(28)
     }
 
-    private fun onOcrDone(result: Text, sig: IntArray) {
+    private fun onOcrDone(result: Text, sig: IntArray, shot: Bitmap?) {
         if (!translateOn && !oneShot) {
             finishCycle()
             return
         }
-        translateLines(visibleLines(result), sig)
+        translateLines(visibleLines(result), sig, shot)
     }
 
     /** Terjemahkan baris yang dipilih, lalu tampilkan hasilnya di layar. */
-    private fun translateLines(lines: List<Pair<RectF, String>>, sig: IntArray) {
+    private fun translateLines(lines: List<Pair<RectF, String>>, sig: IntArray, shot: Bitmap?) {
         if (lines.isEmpty()) {
             shownSig = sig
             finishCycle()
@@ -558,6 +558,8 @@ class TranslateService : Service() {
         val (src, tgt) = currentLangs()
         val chosen = if (src == "auto") null else src
         val texts = lines.map { it.second }
+        // Warna kotak dan tulisan diambil sekarang, selagi gambar layar ini masih ada
+        val colors = lines.map { sampleColors(shot, it.first) }
 
         worker.execute {
             val translated: List<String> = try {
@@ -577,7 +579,7 @@ class TranslateService : Service() {
                         val out = translated.getOrElse(i) { "" }.trim()
                         // Yang sudah dalam bahasa tujuan, atau gagal diterjemahkan, dibiarkan apa adanya
                         if (out.isEmpty() || out == pair.second) null
-                        else OverlayView.Item(pair.first, out)
+                        else OverlayView.Item(pair.first, out, colors[i].first, colors[i].second)
                     }
                     overlay?.setItems(items)
                     shownSig = sig
@@ -646,7 +648,7 @@ class TranslateService : Service() {
                         finishCycle()
                     }
                     OneShot.SPEAK -> pickSpeak(result)
-                    OneShot.TRANSLATE -> pickTranslate(result, sig)
+                    OneShot.TRANSLATE -> pickTranslate(result, sig, bmp)
                 }
             }
             .addOnFailureListener {
@@ -697,7 +699,7 @@ class TranslateService : Service() {
     }
 
     /** Terjemahan sekali: pilih baris yang mau diterjemahkan, atau semuanya. */
-    private fun pickTranslate(result: Text, sig: IntArray) {
+    private fun pickTranslate(result: Text, sig: IntArray, shot: Bitmap?) {
         val lines = visibleLines(result).sortedWith(compareBy({ it.first.top }, { it.first.left }))
         if (lines.isEmpty()) {
             toast("Tidak ada teks di layar")
@@ -710,7 +712,7 @@ class TranslateService : Service() {
             "Terjemahkan semua",
             "Terjemahkan pilihan",
             onCancel = { finishCycle() }
-        ) { chosen -> translateLines(chosen.map { lines[it] }, sig) }
+        ) { chosen -> translateLines(chosen.map { lines[it] }, sig, shot) }
     }
 
     /** Bacakan sekali: pilih baris yang mau dibacakan, atau semuanya. */
@@ -1047,6 +1049,53 @@ class TranslateService : Service() {
                 crop.recycle()
                 toast("Area tidak terbaca")
             }
+    }
+
+    /**
+     * Warna latar di sekitar satu baris teks, diambil dari gambar layar.
+     * Hasilnya pasangan (warna kotak, warna tulisan): tulisan hitam di latar terang, putih di latar gelap.
+     * Kalau gambar tidak ada atau gagal dibaca, dipakai putih dan hitam.
+     */
+    private fun sampleColors(shot: Bitmap?, rect: RectF): Pair<Int, Int> {
+        val fallback = Pair(Color.WHITE, Color.BLACK)
+        if (shot == null || shot.isRecycled) return fallback
+        return try {
+            val left = rect.left.toInt()
+            val right = rect.right.toInt()
+            val top = rect.top.toInt()
+            val bottom = rect.bottom.toInt()
+            var sumR = 0L
+            var sumG = 0L
+            var sumB = 0L
+            var count = 0
+            // Titik contoh di atas, bawah, kiri, dan kanan baris, sedikit di luar teksnya
+            fun add(x: Int, y: Int) {
+                if (x < 0 || y < 0 || x >= shot.width || y >= shot.height) return
+                val c = shot.getPixel(x, y)
+                sumR += Color.red(c)
+                sumG += Color.green(c)
+                sumB += Color.blue(c)
+                count++
+            }
+            val stepX = maxOf(1, (right - left) / 6)
+            val stepY = maxOf(1, (bottom - top) / 4)
+            for (x in left..right step stepX) {
+                add(x, top - 3)
+                add(x, bottom + 3)
+            }
+            for (y in top..bottom step stepY) {
+                add(left - 3, y)
+                add(right + 3, y)
+            }
+            if (count == 0) return fallback
+            val r = (sumR / count).toInt()
+            val g = (sumG / count).toInt()
+            val b = (sumB / count).toInt()
+            val terang = 0.299 * r + 0.587 * g + 0.114 * b > 140
+            Pair(Color.rgb(r, g, b), if (terang) Color.BLACK else Color.WHITE)
+        } catch (e: Exception) {
+            fallback
+        }
     }
 
     /** Sidik jari layar: sampel 24x48 piksel, untuk tahu apakah layar berubah. */
