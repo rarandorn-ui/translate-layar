@@ -116,6 +116,8 @@ class TranslateService : Service() {
     // shownSig = layar yang hasil terjemahannya sedang tampil.
     private var ocrSig: IntArray? = null
     private var shownSig: IntArray? = null
+    // Layar yang terakhir gagal diterjemahkan, supaya pesan gagalnya hanya muncul sekali
+    private var gagalSig: IntArray? = null
 
     private val loopRunnable = Runnable { runCycle() }
 
@@ -433,6 +435,7 @@ class TranslateService : Service() {
         updateBubbleColor()
         ocrSig = null
         shownSig = null
+        gagalSig = null
         if (translateOn) {
             toast("Terjemahan aktif")
             warnIfModelDownloading()
@@ -563,8 +566,13 @@ class TranslateService : Service() {
                 Translator.translateMixed(texts, chosen, tgt)
             } catch (e: Exception) {
                 handler.post {
-                    toast("Gagal menerjemahkan: ${e.message?.take(80)}")
-                    shownSig = sig
+                    // Layar ini belum berhasil diterjemahkan, jadi tidak ditandai selesai. Dicoba lagi di putaran berikutnya.
+                    // Pesan gagal hanya muncul sekali untuk layar yang sama, supaya tidak berulang-ulang.
+                    if (!sameScreen(sig, gagalSig)) {
+                        toast("Gagal menerjemahkan: ${e.message?.take(80)}")
+                        gagalSig = sig
+                    }
+                    ocrSig = null
                     finishCycle()
                 }
                 return@execute

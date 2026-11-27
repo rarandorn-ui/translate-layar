@@ -216,6 +216,7 @@ object I18n {
         "2. Mulai (izinkan rekam layar)" to "2. Start (allow screen recording)",
         "Hentikan layanan" to "Stop service",
         "Siap dipakai" to "Ready to use",
+        "Gagal membaca status terbaru. Yang tampil status terakhir." to "Couldn't read the latest status. Showing the last known status.",
         "Izin tampil di atas aplikasi lain" to "Display over other apps",
         "Izin tampil di atas aplikasi lain belum aktif" to "Display over other apps is not active yet",
         "Suara bacaan siap" to "Speech ready",

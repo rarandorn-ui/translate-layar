@@ -710,7 +710,7 @@ class MainActivity : AppCompatActivity() {
     private fun kodeTerunduh(): Set<String> {
         val models = Tasks.await(
             RemoteModelManager.getInstance().getDownloadedModels(TranslateRemoteModel::class.java),
-            30, TimeUnit.SECONDS
+            10, TimeUnit.SECONDS
         )
         return models.map { it.language }.toSet()
     }
@@ -830,6 +830,7 @@ class MainActivity : AppCompatActivity() {
                 kelolaInfo = null
             }
             .show()
+        renderDaftar()
         muatUlangDaftar()
     }
 
@@ -846,7 +847,9 @@ class MainActivity : AppCompatActivity() {
                 if (isDestroyed) return@runOnUiThread
                 val info = kelolaInfo ?: return@runOnUiThread
                 if (terunduh == null) {
-                    info.text = I18n.tr(this, "Gagal membaca daftar model")
+                    // Status terbaru tidak terbaca, jadi tetap tampilkan status terakhir yang diketahui
+                    info.text = I18n.tr(this, "Gagal membaca status terbaru. Yang tampil status terakhir.")
+                    renderDaftar()
                     return@runOnUiThread
                 }
                 info.text = I18n.tr(this, "Model yang sudah diunduh bisa dipakai tanpa internet.")
