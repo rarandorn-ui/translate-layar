@@ -227,12 +227,15 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnOverlay).setOnClickListener {
             requestOverlayPermission()
         }
+        // Satu tombol untuk dua keadaan: Mulai saat layanan mati, Hentikan saat layanan jalan
         findViewById<Button>(R.id.btnStart).setOnClickListener {
-            startFlow()
-        }
-        findViewById<Button>(R.id.btnStop).setOnClickListener {
-            stopService(Intent(this, TranslateService::class.java))
-            toast("Layanan dihentikan")
+            if (TranslateService.isRunning) {
+                stopService(Intent(this, TranslateService::class.java))
+                toast("Layanan dihentikan")
+                findViewById<Button>(R.id.btnStart).postDelayed({ perbaruiTombolMulai() }, 500)
+            } else {
+                startFlow()
+            }
         }
         findViewById<Button>(R.id.btnKelolaModel).setOnClickListener { kelolaModel() }
         findViewById<Button>(R.id.btnUpdate).setOnClickListener {
@@ -263,6 +266,21 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refreshStatus()
+        perbaruiTombolMulai()
+    }
+
+    /** Mengatur tombol btnStart sesuai keadaan layanan: Mulai (merah) atau Hentikan layanan (abu-abu). */
+    private fun perbaruiTombolMulai() {
+        val btn = findViewById<Button>(R.id.btnStart)
+        if (TranslateService.isRunning) {
+            btn.text = I18n.tr(this, "Hentikan layanan")
+            btn.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#E0E0E0")))
+            btn.setTextColor(Color.parseColor("#111111"))
+        } else {
+            btn.text = I18n.tr(this, "2. Mulai (izinkan rekam layar)")
+            btn.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#D32F2F")))
+            btn.setTextColor(Color.WHITE)
+        }
     }
 
     private fun refreshStatus() {
@@ -299,6 +317,8 @@ class MainActivity : AppCompatActivity() {
             putExtra(TranslateService.EXTRA_DATA, data)
         }
         ContextCompat.startForegroundService(this, intent)
+        // Layanan mulai sedikit setelahnya, jadi tombol diperbarui dengan jeda kecil
+        findViewById<Button>(R.id.btnStart).postDelayed({ perbaruiTombolMulai() }, 800)
         // Kembali ke layar supaya bulatan langsung terlihat di atas aplikasi lain
         moveTaskToBack(true)
     }
