@@ -301,7 +301,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshStatus() {
         val overlayOk = Settings.canDrawOverlays(this)
-        val modelOk = modelStatus == "Model terjemahan: siap"
+        val modelOk = modelStatus == "Model terjemahan: siap" || modelStatus == "Model bahasa umum sudah siap"
         val suaraOk = speechStatus == "Suara bacaan: siap"
         tvStatus.text = buildString {
             // Daftar siap dipakai: tanda centang untuk yang sudah beres, tanda silang atau jam untuk yang belum.
@@ -1119,7 +1119,7 @@ class MainActivity : AppCompatActivity() {
                 I18n.tr(this, "Build terbaru: ") + remote + "\n" +
                     I18n.tr(this, "Build kamu: ") + local + "\n\n" +
                     I18n.tr(this, "Buka halaman update untuk mengunduh APK terbaru?") + "\n\n" +
-                    I18n.tr(this, "Cara memperbarui: copot (uninstall) RTTS yang lama dulu, lalu pasang APK yang baru. Pengaturan dan izin tampil di atas aplikasi lain perlu diatur ulang.")
+                    I18n.tr(this, "Cara memperbarui:\n1. Copot RTTS yang lama.\n2. Pasang file APK yang baru.\nPengaturan dan izin tampil di atas aplikasi lain ikut hilang saat dicopot, jadi atur ulang setelah memasang.")
             )
             .setPositiveButton(I18n.tr(this, "Buka halaman update")) { _, _ ->
                 try {

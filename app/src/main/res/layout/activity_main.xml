@@ -22,13 +22,13 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:padding="8dp"
-                android:paddingTop="2dp">
+                android:paddingTop="0dp">
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:layout_marginBottom="6dp"
+                    android:layout_marginTop="0dp"
+                    android:layout_marginBottom="4dp"
                     android:gravity="center"
                     android:text="RTTS. Real Time Translate Screen"
                     android:textColor="#111111"
@@ -47,7 +47,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="10dp">
+                        android:padding="8dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -80,7 +80,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="10dp">
+                        android:padding="8dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -140,7 +140,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="10dp">
+                        android:padding="8dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -180,7 +180,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="10dp">
+                        android:padding="8dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -240,7 +240,7 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="6dp"
+                    android:layout_marginBottom="4dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">
@@ -297,7 +297,7 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="6dp"
+                    android:layout_marginBottom="4dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">
@@ -367,7 +367,7 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="4dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">
@@ -407,7 +407,7 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="4dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">
@@ -446,7 +446,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="Cara memperbarui: copot (uninstall) RTTS yang lama dulu, lalu pasang APK yang baru. Pengaturan dan izin tampil di atas aplikasi lain perlu diatur ulang."
+                            android:text="Cara memperbarui:&#10;1. Copot RTTS yang lama.&#10;2. Pasang file APK yang baru.&#10;Pengaturan dan izin tampil di atas aplikasi lain ikut hilang saat dicopot, jadi atur ulang setelah memasang."
                             android:textColor="#424242"
                             android:textSize="14sp" />
                     </LinearLayout>
@@ -455,7 +455,7 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="4dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">
@@ -525,7 +525,7 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="4dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">
@@ -700,7 +700,7 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="4dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">
@@ -873,7 +873,7 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="4dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">

@@ -50,11 +50,11 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
 
       - name: Siapkan nama APK untuk rilis
-        run: cp app/build/outputs/apk/debug/app-debug.apk RTTS-build-${{ github.run_number }}.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk RTTS.apk
 
       - name: Buat release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: RTTS build ${{ github.run_number }}
-          files: RTTS-build-${{ github.run_number }}.apk
+          files: RTTS.apk
