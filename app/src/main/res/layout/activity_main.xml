@@ -439,6 +439,14 @@
                             android:text="Cek pembaruan"
                             app:backgroundTint="#E0E0E0"
                             android:textColor="#111111" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:text="Cara memperbarui: copot (uninstall) RTTS yang lama dulu, lalu pasang APK yang baru. Pengaturan dan izin tampil di atas aplikasi lain perlu diatur ulang."
+                            android:textColor="#424242"
+                            android:textSize="14sp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 

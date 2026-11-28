@@ -24,7 +24,23 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Siapkan kunci tanda tangan
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/rtts-rilis.jks"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/rtts-rilis.jks" >> "$GITHUB_ENV"
+            echo "Kunci tanda tangan tetap dipakai."
+          else
+            echo "Secret KEYSTORE_BASE64 belum ada, pakai kunci debug bawaan."
+          fi
+
       - name: Build APK debug
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle :app:assembleDebug --no-daemon
 
       - name: Simpan APK
@@ -33,9 +49,12 @@ jobs:
           name: translate-layar-apk
           path: app/build/outputs/apk/debug/app-debug.apk
 
+      - name: Siapkan nama APK untuk rilis
+        run: cp app/build/outputs/apk/debug/app-debug.apk RTTS-build-${{ github.run_number }}.apk
+
       - name: Buat release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: RTTS build ${{ github.run_number }}
-          files: app/build/outputs/apk/debug/app-debug.apk
+          files: RTTS-build-${{ github.run_number }}.apk

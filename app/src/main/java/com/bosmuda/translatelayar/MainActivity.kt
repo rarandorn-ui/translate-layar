@@ -1082,7 +1082,8 @@ class MainActivity : AppCompatActivity() {
             .setMessage(
                 I18n.tr(this, "Build terbaru: ") + remote + "\n" +
                     I18n.tr(this, "Build kamu: ") + local + "\n\n" +
-                    I18n.tr(this, "Buka halaman update untuk mengunduh APK terbaru?")
+                    I18n.tr(this, "Buka halaman update untuk mengunduh APK terbaru?") + "\n\n" +
+                    I18n.tr(this, "Cara memperbarui: copot (uninstall) RTTS yang lama dulu, lalu pasang APK yang baru. Pengaturan dan izin tampil di atas aplikasi lain perlu diatur ulang.")
             )
             .setPositiveButton(I18n.tr(this, "Buka halaman update")) { _, _ ->
                 try {

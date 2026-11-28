@@ -171,6 +171,8 @@ object I18n {
         "Ada pembaruan" to "Update available",
         "Buka halaman update untuk mengunduh APK terbaru?" to "Open the update page to download the latest APK?",
         "Buka halaman update" to "Open update page",
+        "Cara memperbarui: copot (uninstall) RTTS yang lama dulu, lalu pasang APK yang baru. Pengaturan dan izin tampil di atas aplikasi lain perlu diatur ulang." to
+            "How to update: uninstall the old RTTS first, then install the new APK. Settings and the display-over-other-apps permission will need to be set up again after updating.",
         "Nanti" to "Later",
         "Bahasa" to "Language",
         "Bahasa asal" to "Source language",

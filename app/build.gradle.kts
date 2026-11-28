@@ -17,7 +17,27 @@ android {
         versionName = "1.0"
     }
 
+    // Kunci tanda tangan tetap, diambil dari GitHub Secrets saat build di GitHub.
+    // Kalau tidak ada (misalnya build di HP), tetap pakai kunci debug bawaan.
+    // Dengan kunci tetap, APK baru bisa menimpa (update) APK lama.
+    signingConfigs {
+        create("rilis") {
+            val berkas = System.getenv("KEYSTORE_FILE")
+            if (!berkas.isNullOrBlank()) {
+                storeFile = file(berkas)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
+        getByName("debug") {
+            if (!System.getenv("KEYSTORE_FILE").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("rilis")
+            }
+        }
         release {
             isMinifyEnabled = false
         }
