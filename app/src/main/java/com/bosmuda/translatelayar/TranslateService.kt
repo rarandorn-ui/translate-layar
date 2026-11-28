@@ -283,6 +283,52 @@ class TranslateService : Service() {
         toast("Bulatan siap. Ketuk untuk terjemahan, tekan lama untuk menu")
     }
 
+    /** Dipanggil saat HP diputar. Ukuran tangkapan layar harus ikut berubah, kalau tidak kotak terjemahan tidak sejajar dengan teks. */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (projection != null) rotateCapture()
+    }
+
+    /** Membuat ulang tangkapan layar sesuai ukuran layar yang baru, lalu menjaga bulatan tetap di dalam layar. */
+    private fun rotateCapture() {
+        val proj = projection ?: return
+        val lamaW = screenW
+        val lamaH = screenH
+        loadMetrics()
+        if (screenW == lamaW && screenH == lamaH) return
+
+        virtualDisplay?.release()
+        virtualDisplay = null
+        imageReader?.close()
+        imageReader = null
+        lastFrame = null
+        ocrSig = null
+        shownSig = null
+        gagalSig = null
+        overlay?.setItems(emptyList())
+
+        val reader = ImageReader.newInstance(screenW, screenH, PixelFormat.RGBA_8888, 2)
+        imageReader = reader
+        virtualDisplay = proj.createVirtualDisplay(
+            "TranslateLayar",
+            screenW,
+            screenH,
+            densityDpi,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+            reader.surface,
+            null,
+            null
+        )
+
+        bubbleLp?.let { lp ->
+            if (lp.x > screenW - bubbleSizePx) lp.x = screenW - bubbleSizePx
+            if (lp.y > screenH - bubbleSizePx) lp.y = screenH - bubbleSizePx
+            if (lp.x < 0) lp.x = 0
+            if (lp.y < 0) lp.y = 0
+            bubble?.let { runCatching { windowManager.updateViewLayout(it, lp) } }
+        }
+    }
+
     private fun buildRecognizer(script: Script): TextRecognizer = when (script) {
         Script.LATIN -> TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         Script.CHINESE -> TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())

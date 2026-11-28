@@ -3,8 +3,10 @@ package com.bosmuda.translatelayar
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.common.model.DownloadConditions
+import com.google.mlkit.common.model.RemoteModelManager
 import com.google.mlkit.nl.languageid.LanguageIdentification
 import com.google.mlkit.nl.translate.TranslateLanguage
+import com.google.mlkit.nl.translate.TranslateRemoteModel
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
 import java.util.concurrent.ConcurrentHashMap
@@ -26,6 +28,9 @@ object Translator {
     private const val DETECT_TIMEOUT_S = 15L
     private const val DETECT_PAUSE_MS = 60_000L
 
+    // Daftar bahasa yang modelnya sudah ada, dicache sebentar supaya tidak dibaca ulang untuk tiap baris
+    private const val TERUNDUH_CACHE_MS = 15_000L
+
     // Dipakai dari beberapa thread (layanan, menu pilih teks, dan persiapan model)
     private val clients = ConcurrentHashMap<String, com.google.mlkit.nl.translate.Translator>()
 
@@ -35,6 +40,12 @@ object Translator {
     // Pasangan bahasa yang sedang diunduh, dan yang modelnya sudah siap
     private val downloading = ConcurrentHashMap.newKeySet<String>()
     private val ready = ConcurrentHashMap.newKeySet<String>()
+
+    @Volatile
+    private var terunduhCache: Set<String>? = null
+
+    @Volatile
+    private var terunduhCacheAt = 0L
 
     // Pengenal bahasa per baris, dibuat sekali supaya tidak lambat untuk banyak baris
     private val identifier by lazy { LanguageIdentification.getClient() }
@@ -124,7 +135,13 @@ object Translator {
 
         val result = arrayOfNulls<String>(texts.size)
         var firstError: Exception? = null
+        val tersedia = bahasaTerunduh()
         for ((src, indexes) in byLang) {
+            // Bahasa yang modelnya belum ada dilewati, tanpa mengunduh di tengah terjemahan layar.
+            // Bahasa yang dipilih pengguna sendiri tetap boleh diunduh seperti biasa.
+            if (tersedia != null && src != chosen && src != target && src !in tersedia && !ready.contains("$src>$target")) {
+                continue
+            }
             try {
                 val out = translate(indexes.map { texts[it] }, src, target)
                 indexes.forEachIndexed { k, i -> result[i] = out.getOrElse(k) { "" } }
@@ -229,6 +246,7 @@ object Translator {
                 "Model bahasa belum selesai diunduh. Pastikan internet aktif, lalu coba lagi."
             )
             ready.add(key)
+            terunduhCache = null
         } finally {
             downloading.remove(key)
         }
@@ -237,6 +255,28 @@ object Translator {
     /** Melupakan status model yang sudah siap, misalnya setelah model dihapus. */
     fun forgetReady() {
         ready.clear()
+        terunduhCache = null
+    }
+
+    /**
+     * Bahasa yang modelnya sudah ada di HP, dibaca dari daftar model ML Kit. Tidak mengunduh apa pun.
+     * Dicache sebentar. Mengembalikan null kalau daftarnya tidak terbaca. Harus dipanggil dari background thread.
+     */
+    private fun bahasaTerunduh(): Set<String>? {
+        val now = System.currentTimeMillis()
+        terunduhCache?.let { if (now - terunduhCacheAt < TERUNDUH_CACHE_MS) return it }
+        return try {
+            val models = Tasks.await(
+                RemoteModelManager.getInstance().getDownloadedModels(TranslateRemoteModel::class.java),
+                DETECT_TIMEOUT_S, TimeUnit.SECONDS
+            )
+            val hasil = models.map { it.language }.toSet()
+            terunduhCache = hasil
+            terunduhCacheAt = now
+            hasil
+        } catch (e: Exception) {
+            null
+        }
     }
 
     /** True kalau model pasangan bahasa ini sedang diunduh dan belum siap. */
