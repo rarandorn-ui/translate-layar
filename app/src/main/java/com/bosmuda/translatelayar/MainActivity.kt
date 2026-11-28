@@ -12,6 +12,10 @@ import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.text.Editable
+import android.text.TextWatcher
 import android.provider.Settings
 import android.view.View
 import android.widget.AdapterView
@@ -112,6 +116,12 @@ class MainActivity : AppCompatActivity() {
         val teks = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
         if (!teks.isNullOrBlank()) etTeks.setText(teks)
     }
+
+    // Terjemahan otomatis di halaman Teks: menunggu sebentar setelah mengetik
+    private val handlerTeks = Handler(Looper.getMainLooper())
+    private val jedaTerjemahanMs = 600L
+    private val terjemahOtomatis = Runnable { terjemahkanTeks() }
+    private var nomorTerjemahan = 0
 
     // Status model terjemahan, ditampilkan di Beranda
     private var modelStatus = "Model terjemahan: belum disiapkan"
@@ -483,7 +493,6 @@ class MainActivity : AppCompatActivity() {
         spTeksTarget.setSelection(Languages.TARGET.indexOfFirst { it.code == tgt }.coerceAtLeast(0))
 
         findViewById<Button>(R.id.btnTukar).setOnClickListener { tukarBahasa() }
-        findViewById<Button>(R.id.btnTerjemahkanTeks).setOnClickListener { terjemahkanTeks() }
         findViewById<Button>(R.id.btnGambarTeks).setOnClickListener { gambarLauncher.launch("image/*") }
         findViewById<Button>(R.id.btnSuaraTeks).setOnClickListener { ketikSuara() }
         findViewById<Button>(R.id.btnBacaTeks).setOnClickListener { bacaTeksAsal() }
@@ -495,6 +504,19 @@ class MainActivity : AppCompatActivity() {
             cm.setPrimaryClip(ClipData.newPlainText("terjemahan RTTS", text))
             toast("Hasil disalin")
         }
+
+        // Terjemahan jalan sendiri: saat teks diubah, saat bahasa dipilih, dan saat bahasa ditukar
+        etTeks.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) = jadwalkanTerjemahan()
+        })
+        val pilihBahasa = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) = jadwalkanTerjemahan()
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        spTeksSource.onItemSelectedListener = pilihBahasa
+        spTeksTarget.onItemSelectedListener = pilihBahasa
     }
 
     /** Halaman Percakapan: dua orang bicara bahasa berbeda, RTTS menerjemahkan dan membacakannya. */
@@ -593,17 +615,30 @@ class MainActivity : AppCompatActivity() {
         spTeksTarget.setSelection(newTgt)
     }
 
+    /** Menjadwalkan terjemahan. Menunggu sebentar setelah mengetik, supaya tidak menerjemahkan setiap huruf. */
+    private fun jadwalkanTerjemahan() {
+        handlerTeks.removeCallbacks(terjemahOtomatis)
+        handlerTeks.postDelayed(terjemahOtomatis, jedaTerjemahanMs)
+    }
+
     /** Menerjemahkan teks dari kotak ketik. Berjalan di thread terpisah supaya layar tidak macet. */
     private fun terjemahkanTeks() {
+        if (isDestroyed) return
         val text = etTeks.text.toString().trim()
         if (text.isEmpty()) {
-            toast("Ketik teksnya dulu")
+            // Teks kosong: hasil lama dihapus, dan terjemahan yang masih jalan dibuang
+            nomorTerjemahan++
+            hasilTeks = null
+            tvHasilTeks.text = I18n.tr(this, "Hasil terjemahan akan muncul di sini")
+            btnSalinTeks.isEnabled = false
+            btnBacaHasil.isEnabled = false
             return
         }
         val src = Languages.SOURCE[spTeksSource.selectedItemPosition].code
         val tgt = Languages.TARGET[spTeksTarget.selectedItemPosition].code
         prefs().edit().putString("text_source", src).putString("text_target", tgt).apply()
 
+        val nomor = ++nomorTerjemahan
         tvHasilTeks.text = I18n.tr(this, "Sedang menerjemahkan...")
         btnSalinTeks.isEnabled = false
         btnBacaHasil.isEnabled = false
@@ -613,7 +648,8 @@ class MainActivity : AppCompatActivity() {
                 Translator.translate(listOf(text), sourceParam, tgt).firstOrNull().orEmpty()
             }
             runOnUiThread {
-                if (!isDestroyed) {
+                // Hasil dari terjemahan yang sudah tertimpa teks yang lebih baru dibuang
+                if (!isDestroyed && nomor == nomorTerjemahan) {
                     hasil.onSuccess { teks ->
                         hasilTeks = teks
                         tvHasilTeks.text = teks

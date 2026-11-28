@@ -25,10 +25,11 @@
                 android:paddingTop="2dp">
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
                     android:layout_marginBottom="6dp"
+                    android:gravity="center"
                     android:text="RTTS. Real Time Translate Screen"
                     android:textColor="#111111"
                     android:textSize="18sp"
@@ -226,10 +227,11 @@
                 android:padding="8dp">
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="0dp"
                     android:layout_marginBottom="4dp"
+                    android:gravity="center"
                     android:text="Pengaturan"
                     android:textColor="#111111"
                     android:textSize="26sp"
@@ -576,10 +578,11 @@
                 android:padding="8dp">
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="0dp"
                     android:layout_marginBottom="4dp"
+                    android:gravity="center"
                     android:text="Teks"
                     android:textColor="#111111"
                     android:textSize="26sp"
@@ -694,14 +697,6 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnTerjemahkanTeks"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:text="Terjemahkan"
-                    app:backgroundTint="#D32F2F" />
-
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -772,10 +767,11 @@
                 android:padding="8dp">
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="0dp"
                     android:layout_marginBottom="4dp"
+                    android:gravity="center"
                     android:text="Percakapan"
                     android:textColor="#111111"
                     android:textSize="26sp"
