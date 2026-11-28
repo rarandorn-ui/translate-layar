@@ -21,14 +21,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp"
-                android:paddingTop="8dp">
+                android:padding="8dp"
+                android:paddingTop="2dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginBottom="12dp"
+                    android:layout_marginTop="6dp"
+                    android:layout_marginBottom="6dp"
                     android:text="RTTS. Real Time Translate Screen"
                     android:textColor="#111111"
                     android:textSize="18sp"
@@ -153,7 +153,7 @@
                             android:id="@+id/btnOverlay"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:text="1. Izinkan tampil di atas aplikasi lain"
                             app:backgroundTint="#E0E0E0"
                             android:textColor="#111111" />
@@ -162,7 +162,7 @@
                             android:id="@+id/btnStart"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:text="2. Mulai (izinkan rekam layar)"
                             app:backgroundTint="#D32F2F" />
                     </LinearLayout>
@@ -202,7 +202,7 @@
                             android:id="@+id/btnSupportHome"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="4dp"
                             android:text="Dukung lewat Saweria"
                             app:backgroundTint="#E0E0E0"
                             android:textColor="#111111" />
@@ -223,13 +223,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="8dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginBottom="16dp"
+                    android:layout_marginTop="0dp"
+                    android:layout_marginBottom="4dp"
                     android:text="Pengaturan"
                     android:textColor="#111111"
                     android:textSize="26sp"
@@ -238,7 +238,7 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp"
+                    android:layout_marginBottom="6dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">
@@ -247,7 +247,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="18dp">
+                        android:padding="12dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -260,7 +260,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:text="Bahasa asal" />
 
                         <Spinner
@@ -271,7 +271,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="4dp"
                             android:text="Bahasa tujuan" />
 
                         <Spinner
@@ -282,7 +282,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="4dp"
                             android:text="Bahasa tampilan aplikasi" />
 
                         <Spinner
@@ -295,7 +295,7 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp"
+                    android:layout_marginBottom="6dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">
@@ -304,7 +304,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="18dp">
+                        android:padding="12dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -317,7 +317,7 @@
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:orientation="horizontal">
 
                             <TextView
@@ -340,7 +340,7 @@
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:orientation="horizontal">
 
                             <TextView
@@ -365,7 +365,7 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="6dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">
@@ -374,7 +374,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="18dp">
+                        android:padding="12dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -387,7 +387,7 @@
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:text="Kalau aplikasi ini membantu, kamu bisa mendukung pengembangannya lewat Saweria."
                             android:textColor="#424242" />
 
@@ -395,7 +395,7 @@
                             android:id="@+id/btnSupport"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="4dp"
                             android:text="Dukung lewat Saweria"
                             app:backgroundTint="#E0E0E0"
                             android:textColor="#111111" />
@@ -405,7 +405,7 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="6dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">
@@ -414,7 +414,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="18dp">
+                        android:padding="12dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -428,14 +428,14 @@
                             android:id="@+id/tvBuild"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:textColor="#424242" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnUpdate"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="4dp"
                             android:text="Cek pembaruan"
                             app:backgroundTint="#E0E0E0"
                             android:textColor="#111111" />
@@ -443,7 +443,7 @@
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="4dp"
                             android:text="Cara memperbarui: copot (uninstall) RTTS yang lama dulu, lalu pasang APK yang baru. Pengaturan dan izin tampil di atas aplikasi lain perlu diatur ulang."
                             android:textColor="#424242"
                             android:textSize="14sp" />
@@ -453,7 +453,7 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="6dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">
@@ -462,7 +462,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="18dp">
+                        android:padding="12dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -475,7 +475,7 @@
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:orientation="horizontal">
 
                             <TextView
@@ -498,7 +498,7 @@
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:orientation="horizontal">
 
                             <TextView
@@ -523,7 +523,7 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="6dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">
@@ -532,7 +532,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="18dp">
+                        android:padding="12dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -545,7 +545,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:text="Model bahasa disimpan di HP supaya bisa dipakai tanpa internet. Lima bahasa paling umum diunduh otomatis."
                             android:textColor="#424242" />
 
@@ -553,7 +553,7 @@
                             android:id="@+id/btnKelolaModel"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="4dp"
                             android:text="Kelola model bahasa"
                             app:backgroundTint="#E0E0E0"
                             android:textColor="#111111" />
@@ -573,13 +573,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="8dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginBottom="16dp"
+                    android:layout_marginTop="0dp"
+                    android:layout_marginBottom="4dp"
                     android:text="Teks"
                     android:textColor="#111111"
                     android:textSize="26sp"
@@ -596,7 +596,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="18dp">
+                        android:padding="12dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -632,7 +632,7 @@
                             android:id="@+id/etTeks"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="4dp"
                             android:gravity="top"
                             android:hint="Ketik atau tempel teks di sini"
                             android:inputType="textMultiLine"
@@ -641,7 +641,7 @@
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:orientation="horizontal">
 
                             <com.google.android.material.button.MaterialButton
@@ -668,7 +668,7 @@
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="4dp"
                             android:orientation="horizontal">
 
                             <com.google.android.material.button.MaterialButton
@@ -698,14 +698,14 @@
                     android:id="@+id/btnTerjemahkanTeks"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="6dp"
                     android:text="Terjemahkan"
                     app:backgroundTint="#D32F2F" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="6dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">
@@ -714,7 +714,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="18dp">
+                        android:padding="12dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -728,7 +728,7 @@
                             android:id="@+id/tvHasilTeks"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:minLines="3"
                             android:text="Hasil terjemahan akan muncul di sini"
                             android:textColor="#424242"
@@ -739,7 +739,7 @@
                             android:id="@+id/btnSalinTeks"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="4dp"
                             android:enabled="false"
                             android:text="Salin hasil"
                             android:textColor="#111111"
@@ -749,7 +749,7 @@
                             android:id="@+id/btnBacaHasil"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:enabled="false"
                             android:text="🔊 Bacakan hasil"
                             android:textColor="#111111"
@@ -769,13 +769,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="8dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginBottom="16dp"
+                    android:layout_marginTop="0dp"
+                    android:layout_marginBottom="4dp"
                     android:text="Percakapan"
                     android:textColor="#111111"
                     android:textSize="26sp"
@@ -792,7 +792,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="18dp">
+                        android:padding="12dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -842,13 +842,13 @@
                             android:id="@+id/tvStatusPercakapan"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="10dp"
+                            android:layout_marginTop="4dp"
                             android:textColor="#D32F2F" />
 
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="4dp"
                             android:orientation="horizontal">
 
                             <com.google.android.material.button.MaterialButton
@@ -877,7 +877,7 @@
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="6dp"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp">
@@ -886,7 +886,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="18dp">
+                        android:padding="12dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -900,7 +900,7 @@
                             android:id="@+id/tvPercakapan"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:minLines="6"
                             android:text="Tekan tombol mikrofon untuk mulai bicara."
                             android:textColor="#424242"
@@ -911,7 +911,7 @@
                             android:id="@+id/btnHapusPercakapan"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="4dp"
                             android:text="Hapus percakapan"
                             android:textColor="#111111"
                             app:backgroundTint="#E0E0E0" />
