@@ -123,6 +123,7 @@ class MainActivity : AppCompatActivity() {
     private val jedaTerjemahanMs = 600L
     private val terjemahOtomatis = Runnable { terjemahkanTeks() }
     private var nomorTerjemahan = 0
+    private var ultimaPermintaan: String? = null
 
     // Status model terjemahan, ditampilkan di Beranda
     private var modelStatus = "Model terjemahan: belum disiapkan"
@@ -631,6 +632,7 @@ class MainActivity : AppCompatActivity() {
         if (text.isEmpty()) {
             // Teks kosong: hasil lama dihapus, dan terjemahan yang masih jalan dibuang
             nomorTerjemahan++
+            ultimaPermintaan = null
             hasilTeks = null
             tvHasilTeks.text = I18n.tr(this, "Hasil terjemahan akan muncul di sini")
             btnSalinTeks.isEnabled = false
@@ -641,10 +643,13 @@ class MainActivity : AppCompatActivity() {
         val tgt = Languages.TARGET[spTeksTarget.selectedItemPosition].code
         prefs().edit().putString("text_source", src).putString("text_target", tgt).apply()
 
+        // Teks dan bahasa yang sama sudah diterjemahkan: tidak perlu diulang
+        val kunci = "$text|$src|$tgt"
+        if (kunci == ultimaPermintaan) return
+        ultimaPermintaan = kunci
+
+        // Hasil lama tetap tampil sampai hasil baru datang, supaya tampilan tidak berkedip
         val nomor = ++nomorTerjemahan
-        tvHasilTeks.text = I18n.tr(this, "Sedang menerjemahkan...")
-        btnSalinTeks.isEnabled = false
-        btnBacaHasil.isEnabled = false
         val sourceParam = if (src == "auto") null else src
         Thread {
             val hasil = runCatching {
@@ -659,6 +664,11 @@ class MainActivity : AppCompatActivity() {
                         btnSalinTeks.isEnabled = teks.isNotBlank()
                         btnBacaHasil.isEnabled = teks.isNotBlank()
                     }.onFailure { e ->
+                        // Gagal: izinkan terjemahan yang sama dicoba lagi nanti
+                        ultimaPermintaan = null
+                        hasilTeks = null
+                        btnSalinTeks.isEnabled = false
+                        btnBacaHasil.isEnabled = false
                         tvHasilTeks.text = I18n.tr(this, "Gagal menerjemahkan: ") + e.message
                     }
                 }
