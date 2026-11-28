@@ -76,6 +76,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sbText: SeekBar
     private lateinit var tvTextVal: TextView
     private lateinit var tvStatus: TextView
+    private lateinit var tvJudulSiap: TextView
     private lateinit var tvBuild: TextView
 
     // Halaman Teks
@@ -171,6 +172,7 @@ class MainActivity : AppCompatActivity() {
         sbPitch = findViewById(R.id.sbPitch)
         tvPitchVal = findViewById(R.id.tvPitchVal)
         tvStatus = findViewById(R.id.tvStatus)
+        tvJudulSiap = findViewById(R.id.tvJudulSiap)
         tvBuild = findViewById(R.id.tvBuild)
         tvBuild.text = I18n.tr(this, "Build terpasang: ") + localBuild()
 
@@ -303,6 +305,7 @@ class MainActivity : AppCompatActivity() {
         val overlayOk = Settings.canDrawOverlays(this)
         val modelOk = modelStatus == "Model terjemahan: siap" || modelStatus == "Model bahasa umum sudah siap"
         val suaraOk = speechStatus == "Suara bacaan: siap"
+        tvJudulSiap.text = I18n.tr(this, if (overlayOk && modelOk && suaraOk) "Siap dipakai" else "Belum siap dipakai")
         tvStatus.text = buildString {
             // Daftar siap dipakai: tanda centang untuk yang sudah beres, tanda silang atau jam untuk yang belum.
             // Di dalam buildString, "this" adalah StringBuilder, jadi konteks aplikasinya ditulis eksplisit
